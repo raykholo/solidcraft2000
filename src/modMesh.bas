@@ -70,6 +70,8 @@ Public Function MeshDesign(d As TDesign, t() As TTri, Optional ByVal nSegs As In
                 first = mN
                 MeshRevolve d, i, nSegs
                 If mN > first Then OrientOutward first, mN
+            Case FK_SM_BASE, FK_SM_EDGE
+                SM_Mesh d, i
             End Select
         End If
     Next i
@@ -77,6 +79,22 @@ Public Function MeshDesign(d As TDesign, t() As TTri, Optional ByVal nSegs As In
     MeshDesign = mN
     sErr = mErr
 End Function
+
+' For modSheetMetal: add triangles, then turn each closed body it makes to
+' face out with MeshOrient(the MeshCount from before it).
+Public Sub MeshAddTri(ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
+                      ByVal x2 As Double, ByVal y2 As Double, ByVal z2 As Double, _
+                      ByVal x3 As Double, ByVal y3 As Double, ByVal z3 As Double, ByVal body As Integer)
+    AddTri x1, y1, z1, x2, y2, z2, x3, y3, z3, body
+End Sub
+
+Public Function MeshCount() As Long
+    MeshCount = mN
+End Function
+
+Public Sub MeshOrient(ByVal first As Long)
+    If mN > first Then OrientOutward first, mN
+End Sub
 
 Private Sub AddTri(ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
                    ByVal x2 As Double, ByVal y2 As Double, ByVal z2 As Double, _
@@ -131,6 +149,15 @@ Private Function GetBody(d As TDesign, ByVal i As Integer, z0 As Double, z1 As D
     GetBody = (no >= 3)
 End Function
 
+' The flat part of extrude i's top (smaller than its outline if it has a
+' fillet), anticlockwise.
+Private Function GetTop(d As TDesign, ByVal i As Integer, tx() As Double, ty() As Double) As Long
+    Dim tf As TFeature, seam() As Boolean, n As Long
+    tf = TopFace(d, i)
+    n = ProfilePoints(tf, tx, ty, seam, mSegs, True)
+    GetTop = CleanOutline(tx, ty, n)
+End Function
+
 Private Function IsBody(d As TDesign, ByVal i As Integer) As Boolean
     If d.Features(i).Kind = FK_EXTRUDE And d.Features(i).Suppressed = 0 Then IsBody = RefOk(d, i)
 End Function
@@ -140,7 +167,7 @@ End Function
 Private Function CollectHoles(d As TDesign, ByVal i As Integer, ByVal z1 As Double, h() As THole) As Integer
     Dim j As Integer, n As Integer, zt As Double, zb As Double, r As Double, s As TFeature
     ReDim h(0 To 7)
-    s = d.Features(d.Features(i).Ref)
+    s = TopFace(d, i)
     For j = i + 1 To d.Count
         If d.Features(j).Kind = FK_HOLE And d.Features(j).Suppressed = 0 Then
             If RefOk(d, j) Then
@@ -175,6 +202,7 @@ Private Sub FindJoins(d As TDesign)
                 For i = 1 To d.Count
                     If i <> j And IsBody(d, i) Then
                         If GetBody(d, i, az0, az1, ax, ay, na) Then
+                            na = GetTop(d, i, ax, ay)
                             If Abs(az1 - bz0) < EPS Then
                                 ok = (Relation(ax, ay, na, bx, by, nb) = 1)
                                 If ok Then
@@ -210,8 +238,11 @@ Private Sub MeshExtrude(d As TDesign, ByVal i As Integer)
     Dim h() As THole, nh As Integer, inFoot() As Boolean, j As Integer, k As Long, k2 As Long
     Dim fx() As Double, fy() As Double, nf As Long, fz0 As Double, fz1 As Double
     Dim hx() As Double, hy() As Double, zb As Double
+    Dim fr As Double, tx() As Double, ty() As Double, nt As Long
 
     If Not GetBody(d, i, z0, z1, ox, oy, no) Then Exit Sub
+    fr = FilletRadius(d, i)
+    nt = GetTop(d, i, tx, ty)
     nh = CollectHoles(d, i, z1, h)
     ReDim inFoot(0 To nh)
 
@@ -230,7 +261,7 @@ Private Sub MeshExtrude(d As TDesign, ByVal i As Integer)
     For k = 0 To nh - 1
         If Not inFoot(k) And h(k).ZBot < z1 - EPS Then AddCircleLoop h(k).X, h(k).Y, h(k).R
     Next k
-    If Not CapLoops(ox, oy, no, z1, True, i) Then
+    If Not CapLoops(tx, ty, nt, z1, True, i) Then
         mErr = mErr & FeatureName(d, i) & " (its holes are too close together to cap). "
         Exit Sub
     End If
@@ -245,11 +276,15 @@ Private Sub MeshExtrude(d As TDesign, ByVal i As Integer)
     End If
 
     ' the outside walls
-    For k = 0 To no - 1
-        k2 = (k + 1) Mod no
-        AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z0, ox(k2), oy(k2), z1, i
-        AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z1, ox(k), oy(k), z1, i
-    Next k
+    If fr <= 0 Then
+        For k = 0 To no - 1
+            k2 = (k + 1) Mod no
+            AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z0, ox(k2), oy(k2), z1, i
+            AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z1, ox(k), oy(k), z1, i
+        Next k
+    Else
+        FilletWalls d, i, z0, z1, fr
+    End If
 
     ' the holes: walls facing into them, floors where they stop, and a roof
     ' where one starts on this top under a body that stands on it
@@ -263,6 +298,49 @@ Private Sub MeshExtrude(d As TDesign, ByVal i As Integer)
         ElseIf inFoot(k) Then
             HoleDisc h(k).X, h(k).Y, h(k).R, z1, True, h(k).Feat       ' a hole above that stops right here
         End If
+    Next k
+End Sub
+
+' The walls of a filleted extrude: straight up to where the fillet starts,
+' then bands up the quarter circle, each ring the outline moved in a little
+' more, to the top's edge. Rings have the same number of points (a sharp
+' corner is a corner of radius 0, all its points in one place), and the
+' slivers between points in the same place have no area and are left out.
+Private Sub FilletWalls(d As TDesign, ByVal i As Integer, ByVal z0 As Double, ByVal z1 As Double, ByVal fr As Double)
+    Dim s As TFeature, tf As TFeature, seam() As Boolean
+    Dim ax() As Double, ay() As Double, bx() As Double, by() As Double
+    Dim n As Long, k As Long, k2 As Long, m As Integer, steps As Integer
+    Dim za As Double, zb As Double, a As Double, zf As Double
+    s = d.Features(d.Features(i).Ref)
+    zf = z1 - fr
+    n = ProfilePoints(s, ax, ay, seam, mSegs, True)
+    RingBand ax, ay, z0, ax, ay, zf, n, i
+    steps = mSegs \ 4
+    za = zf
+    For m = 1 To steps
+        a = (PI / 2) * m / steps
+        If m = steps Then
+            tf = InsetSketch(s, fr)              ' exactly the top's edge
+            zb = z1
+        Else
+            tf = InsetSketch(s, fr * (1 - Cos(a)))
+            zb = zf + fr * Sin(a)
+        End If
+        ProfilePoints tf, bx, by, seam, mSegs, True
+        RingBand ax, ay, za, bx, by, zb, n, i
+        ax = bx: ay = by: za = zb
+    Next m
+End Sub
+
+' Quads between two rings of n points, the lower one at za, facing out.
+Private Sub RingBand(ax() As Double, ay() As Double, ByVal za As Double, _
+                     bx() As Double, by() As Double, ByVal zb As Double, ByVal n As Long, ByVal body As Integer)
+    Dim k As Long, k2 As Long
+    If zb - za < EPS Then Exit Sub
+    For k = 0 To n - 1
+        k2 = (k + 1) Mod n
+        AddTri ax(k), ay(k), za, ax(k2), ay(k2), za, bx(k2), by(k2), zb, body
+        AddTri ax(k), ay(k), za, bx(k2), by(k2), zb, bx(k), by(k), zb, body
     Next k
 End Sub
 

@@ -5,9 +5,12 @@ Attribute VB_Name = "modModel"
 ' which is why FILE_VERSION exists and why the "migration system" is a MsgBox.
 Option Explicit
 
-Public Const FILE_MAGIC As String = "SC98"
-Public Const FILE_VERSION As Integer = 5
+Public Const FILE_MAGIC As String = "SC2K"
+Public Const FILE_VERSION As Integer = 6
+Public Const FILE_MAGIC_98 As String = "SC98"   ' SolidCraft 98 parts: read, upgraded, never written
 Public Const MAX_FEATURES As Integer = 64    ' someone once had 41 features
+
+Private mFrom98 As Boolean                   ' the file being opened is a SolidCraft 98 part
 
 Public Const FK_NONE As Integer = 0
 Public Const FK_SKETCH_RECT As Integer = 1
@@ -15,7 +18,8 @@ Public Const FK_SKETCH_CIRCLE As Integer = 2
 Public Const FK_EXTRUDE As Integer = 3
 Public Const FK_REVOLVE As Integer = 4
 Public Const FK_HOLE As Integer = 5
-Public Const FK_FOREIGN As Integer = 9     ' from a SolidCraft design, and not something SolidCraft 98 can build
+Public Const FK_FILLET As Integer = 6      ' NEW IN 2000: rounds the top edges of an extrude
+Public Const FK_FOREIGN As Integer = 9     ' from a SolidCraft design, and not something SolidCraft 2000 can build
 
 Public Type TFeature
     Kind As Integer
@@ -23,8 +27,8 @@ Public Type TFeature
     X As Double            ' sketch origin / hole centre, mm
     Y As Double
     Z As Double            ' sketch plane height, mm
-    P1 As Double           ' width | radius | depth | angle | diameter
-    P2 As Double           ' height | - | - | - | hole depth (0 = through all)
+    P1 As Double           ' width | radius | depth | angle | diameter | fillet radius
+    P2 As Double           ' height | - | - | - | hole depth (0 = through all) | -
     Ref As Integer         ' the feature this one is built on
     Suppressed As Integer
     P3 As Double           ' rectangle corner radius
@@ -107,8 +111,11 @@ Public Function KindName(ByVal k As Integer) As String
     Case FK_EXTRUDE: KindName = "Extrude"
     Case FK_REVOLVE: KindName = "Revolve"
     Case FK_HOLE: KindName = "Hole"
+    Case FK_FILLET: KindName = "Fillet"
     Case FK_FOREIGN: KindName = "SolidCraft"
-    Case Else: KindName = "?"
+    Case Else
+        KindName = SM_KindName(k)
+        If Len(KindName) = 0 Then KindName = "?"
     End Select
 End Function
 
@@ -118,6 +125,8 @@ Public Function KindPrefix(ByVal k As Integer) As String
     Case FK_EXTRUDE: KindPrefix = "Extrude"
     Case FK_REVOLVE: KindPrefix = "Revolve"
     Case FK_HOLE: KindPrefix = "Hole"
+    Case FK_FILLET: KindPrefix = "Fillet"
+    Case Else: KindPrefix = SM_KindPrefix(k)
     End Select
 End Function
 
@@ -153,7 +162,7 @@ Public Function LastFreeSketch(d As TDesign) As Integer
         If IsSketch(d.Features(i).Kind) Then
             used = False
             For j = i + 1 To d.Count
-                If d.Features(j).Ref = i And (d.Features(j).Kind = FK_EXTRUDE Or d.Features(j).Kind = FK_REVOLVE) Then used = True
+                If d.Features(j).Ref = i And (d.Features(j).Kind = FK_EXTRUDE Or d.Features(j).Kind = FK_REVOLVE Or SM_UsesSketch(d.Features(j).Kind)) Then used = True
             Next j
             If Not used Then
                 LastFreeSketch = i
@@ -223,8 +232,12 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
         Describe = FeatureName(d, f.Ref) & ", " & Fmt(f.P1) & " mm"
     Case FK_REVOLVE
         Describe = FeatureName(d, f.Ref) & ", " & Fmt(f.P1) & Chr$(176) & " about Y"
+    Case FK_FILLET
+        Describe = "R " & Fmt(f.P1) & " mm, top edges of " & FeatureName(d, f.Ref)
     Case FK_FOREIGN
-        Describe = "From SolidCraft. Not in SolidCraft 98."
+        Describe = "From SolidCraft. Not in SolidCraft 2000."
+    Case Else
+        If SM_IsSheetMetal(f.Kind) Then Describe = SM_Describe(d, i)
     Case FK_HOLE
         Describe = "D " & Fmt(f.P1) & " mm on " & FeatureName(d, f.Ref) & " top face, "
         If f.P2 <= 0 Then
@@ -283,21 +296,36 @@ Failed:
     End If
 End Function
 
+' A SolidCraft 98 part has the same features in the same record, so upgrading
+' it is changing four letters and a number. It gets a dialog anyway.
+Private Sub Upgraded98(d As TDesign)
+    If Not mFrom98 Then Exit Sub
+    d.Magic = FILE_MAGIC
+    d.Version = FILE_VERSION
+    MsgBox "This part was made in SolidCraft 98, and has been upgraded to SolidCraft 2000." & vbCrLf & vbCrLf & _
+        "Save it to keep the new format. SolidCraft 98 won't be able to open it again." & vbCrLf & _
+        "(That's progress.)", vbInformation, App.Title
+End Sub
+
 Public Function LoadDesign(d As TDesign, ByVal sPath As String) As Boolean
     Dim fh As Integer, h As TFileHeader
     On Error GoTo Failed
+    mFrom98 = False
     fh = FreeFile
     Open sPath For Binary Access Read As #fh
     Get #fh, 1, h
-    If h.Magic <> FILE_MAGIC Then
+    If h.Magic = FILE_MAGIC_98 Then
+        If h.Version > 5 Then h.Version = 99      ' there's no newer SolidCraft 98 part
+        mFrom98 = True
+    ElseIf h.Magic <> FILE_MAGIC Then
         Close #fh
-        MsgBox "'" & sPath & "' is not a SolidCraft 98 part.", vbExclamation, App.Title
+        MsgBox "'" & sPath & "' is not a SolidCraft 2000 part.", vbExclamation, App.Title
         Exit Function
     End If
     If h.Version > FILE_VERSION Then
         Close #fh
         MsgBox "This file was saved by a newer version of SolidCraft." & vbCrLf & vbCrLf & _
-            "Please upgrade to SolidCraft 98 Second Edition.", vbExclamation, App.Title
+            "Please upgrade to SolidCraft 2000 Service Pack 1.", vbExclamation, App.Title
         Exit Function
     End If
     If h.Version < 3 Then
@@ -325,6 +353,7 @@ Public Function LoadDesign(d As TDesign, ByVal sPath As String) As Boolean
             d.Features(j).P3 = v4.Features(j).P3
         Next j
         LoadDesign = True        ' same features, a bigger record: nothing to tell anyone
+        Upgraded98 d
         Exit Function
     End If
     If h.Version = 3 Then
@@ -348,11 +377,13 @@ Public Function LoadDesign(d As TDesign, ByVal sPath As String) As Boolean
             "It has been converted. Save it to keep the new format." & vbCrLf & _
             "(This has never happened before.)", vbInformation, App.Title
         LoadDesign = True
+        Upgraded98 d
         Exit Function
     End If
     Get #fh, 1, d
     Close #fh
     LoadDesign = True
+    Upgraded98 d
     Exit Function
 Failed:
     If fh <> 0 Then Close #fh

@@ -1,9 +1,0 @@
-lib/
-build/
-*.o
-*.ppu
-*.compiled
-tests/out/
-dist/
-backup/
-SolidCraft98.res

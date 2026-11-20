@@ -1,6 +1,6 @@
 name: Build
 
-# Builds SolidCraft98.exe with twinBASIC on Windows, checks that the packed EXE
+# Builds SolidCraft2000.exe with twinBASIC on Windows, checks that the packed EXE
 # still fits on one 1.44 MB floppy, and makes the release zip and the floppy
 # image. A tag v* publishes them as a GitHub release.
 
@@ -41,6 +41,19 @@ jobs:
         shell: pwsh
         run: tools\ci\build.ps1 -TwinBasic C:\tB -Upx "C:\upx\upx-$env:UPX_VERSION-win64\upx.exe" -Out out
 
+      - name: Smoke test, through the remote control, with screenshots
+        shell: pwsh
+        run: |
+          python -m pip install --quiet pillow
+          python tools/ci/smoke.py out/SolidCraft2000.exe shots
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: screenshots
+          path: shots/
+          if-no-files-found: ignore
+
       - name: Screenshot (when the build fails, to see what the IDE was waiting for)
         if: failure()
         shell: pwsh
@@ -80,15 +93,15 @@ jobs:
           echo "VER=$VER" >> "$GITHUB_ENV"
           mkdir -p dist-out
           # the zip: the EXE as built, with the readme, licence and samples
-          D="SolidCraft98-$VER"
+          D="SolidCraft2000-$VER"
           mkdir -p "$D/Samples"
-          cp out/SolidCraft98.exe dist/README.TXT LICENSE NOTICE "$D/"
+          cp out/SolidCraft2000.exe dist/README.TXT LICENSE NOTICE "$D/"
           cp samples/* "$D/Samples/"
           zip -q -r -X "dist-out/$D.zip" "$D"
           # the floppy: the UPX-packed EXE, all on one 1.44 MB disk
-          mkfs.fat -C -F 12 -n "SC98" "dist-out/SolidCraft98-$VER-floppy.img" 1440 > /dev/null
-          I="dist-out/SolidCraft98-$VER-floppy.img"
-          mcopy -i "$I" out/SC98.EXE ::SC98.EXE
+          mkfs.fat -C -F 12 -n "SC2000" "dist-out/SolidCraft2000-$VER-floppy.img" 1440 > /dev/null
+          I="dist-out/SolidCraft2000-$VER-floppy.img"
+          mcopy -i "$I" out/SC2000.EXE ::SC2000.EXE
           mcopy -i "$I" dist/README.TXT LICENSE NOTICE ::
           mmd -i "$I" ::Samples
           mcopy -i "$I" samples/* ::Samples/
@@ -97,7 +110,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: SolidCraft98-${{ env.VER }}
+          name: SolidCraft2000-${{ env.VER }}
           path: dist-out/
 
   release:
@@ -109,7 +122,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v8
         with:
-          pattern: SolidCraft98-*
+          pattern: SolidCraft2000-*
           path: dist-out
           merge-multiple: true
 
@@ -118,6 +131,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd dist-out
-          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "SolidCraft 98 ${GITHUB_REF_NAME#v}" \
-            --notes "Built by CI. SolidCraft 98 is a parody, not affiliated with or a replacement for SolidCraft. SHA-256 sums are in SHA256SUMS.txt." \
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --title "SolidCraft 2000 ${GITHUB_REF_NAME#v}" \
+            --notes "Built by CI. SolidCraft 2000 is a parody, not affiliated with or a replacement for SolidCraft. SHA-256 sums are in SHA256SUMS.txt." \
             *.zip *.img SHA256SUMS.txt

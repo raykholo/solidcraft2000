@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form frmSetup
    BackColor       =   &H00800000&
    BorderStyle     =   3  'Fixed Dialog
-   Caption         =   "SolidCraft 98 Setup"
+   Caption         =   "SolidCraft 2000 Setup"
    ClientHeight    =   3000
    ClientLeft      =   45
    ClientTop       =   330
@@ -65,7 +65,7 @@ Private Sub Paint()
     p.FontName = "Arial"
     p.FontBold = True
     p.FontSize = 11
-    TextAt p, 16, 12, "SolidCraft 98 Setup", vbWhite
+    TextAt p, 16, 12, "SolidCraft 2000 Setup", vbWhite
     p.FontBold = False
     p.FontSize = 9
     Select Case mStep
@@ -103,9 +103,9 @@ Private Sub tmrCopy_Timer()
         Paint
         MsgBox "Setup has updated your system files." & vbCrLf & vbCrLf & _
             "Please restart Windows to complete setup." & vbCrLf & _
-            "(Excel may not start afterwards. That's normal.)", vbExclamation, "SolidCraft 98 Setup"
+            "(Excel may not start afterwards. That's normal.)", vbExclamation, "SolidCraft 2000 Setup"
         MsgBox "Just kidding. Nothing was copied and nothing needs restarting." & vbCrLf & _
-            "Your Excel is fine.", vbInformation, "SolidCraft 98 Setup"
+            "Your Excel is fine.", vbInformation, "SolidCraft 2000 Setup"
         Unload Me
         Exit Sub
     End If

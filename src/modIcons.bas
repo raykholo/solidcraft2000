@@ -18,7 +18,7 @@ Private Sub R(ByVal s As String)
 End Sub
 
 Public Function IconKeys() As String
-    IconKeys = "New Open Save SketchRect SketchCircle Extrude Revolve Hole Orbit Shaded ZoomFit Regen Turbo"
+    IconKeys = "New Open Save SketchRect SketchCircle Extrude Revolve Hole Fillet Orbit Shaded ZoomFit Regen Turbo"
 End Function
 
 ' bTransparent skips the see-through pixels; otherwise they're painted ICON_MASK.
@@ -200,6 +200,24 @@ Private Sub LoadRows(ByVal sKey As String)
         R "..0BBBBBBBBBB0.."
         R "..0BBB8BB8BBB0.."
         R "..000000000000.."
+        R "................"
+    Case "Fillet"
+        ' new in 2000: a block seen from the side, its top corner rounded (in red)
+        R "................"
+        R "................"
+        R "..111111111....."
+        R "..1BBBBBBBBCC..."
+        R "..1BBBBBBBBBBC.."
+        R "..1BBBBBBBBBBBC."
+        R "..1BBBBBBBBBBBC."
+        R "..1BBBBBBBBBBB1."
+        R "..1BBBBBBBBBBB1."
+        R "..1BBBBBBBBBBB1."
+        R "..1BBBBBBBBBBB1."
+        R "..1BBBBBBBBBBB1."
+        R "..1BBBBBBBBBBB1."
+        R "..1111111111111."
+        R "................"
         R "................"
     Case "Orbit"
         R "................"

@@ -1,6 +1,6 @@
 Attribute VB_Name = "modRemote"
 ' modRemote - remote control. Started with /REMOTE (or /REMOTE:port),
-' SolidCraft 98 listens on TCP port 9898, the way remote-administration
+' SolidCraft 2000 listens on TCP port 9898, the way remote-administration
 ' tools of the day did, and takes one command per line from whoever
 ' connects. Only from this PC, unless it says /REMOTE:ANY (or
 ' /REMOTE:port:ANY): whoever connects works the real mouse and keys. It answers in text, reading the screen the way a screen reader
@@ -19,7 +19,7 @@ Attribute VB_Name = "modRemote"
 '   how <words>               look it up in the help index
 '   yes                       take the step just offered
 '   help
-'   quit                      ends SolidCraft 98 at once, nothing saved
+'   quit                      ends SolidCraft 2000 at once, nothing saved
 '
 ' Clicks and keys go in as real mouse and keyboard input, a step at a time,
 ' so anyone watching sees the pointer move and the letters appear. Actions
@@ -85,6 +85,7 @@ Private Declare Function MapVirtualKey Lib "user32" Alias "MapVirtualKeyA" (ByVa
 Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As Long, lpRect As RECT) As Long
 Private Declare Function ClientToScreen Lib "user32" (ByVal hWnd As Long, lpPoint As POINTAPI) As Long
 Private Declare Function SendMessage Lib "user32" Alias "SendMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, lParam As Any) As Long
+Private Const LB_GETITEMRECT As Long = &H198
 Private Declare Function GetWindowText Lib "user32" Alias "GetWindowTextA" (ByVal hWnd As Long, ByVal lpString As String, ByVal cch As Long) As Long
 Private Declare Function GetClassName Lib "user32" Alias "GetClassNameA" (ByVal hWnd As Long, ByVal lpClassName As String, ByVal nMaxCount As Long) As Long
 Private Declare Function IsWindowVisible Lib "user32" (ByVal hWnd As Long) As Long
@@ -595,19 +596,19 @@ Private Function PictureReadOut(f As Form) As String
     Case "frmFatal"
         PictureReadOut = "The whole screen is blue: A fatal exception 0E has occurred at 0028:SOLIDCRAFT+00000D1V0. " & _
             "Something somewhere was divided by zero. The current part will not be terminated. It is fine. " & _
-            "Press any key to return to SolidCraft 98. Then type a number that isn't zero."
+            "Press any key to return to SolidCraft 2000. Then type a number that isn't zero."
     Case "frmSetup"
         PictureReadOut = frmSetup.ReadOut()
     Case "frmCredits"
         PictureReadOut = "A demo-scene credits screen: stars, copper bars and scrolling text. A click or a key closes it."
     Case "frmAbout"
-        PictureReadOut = "A picture: the SolidCraft 98 logo, a block with a hole in it."
+        PictureReadOut = "A picture: the SolidCraft 2000 logo, a block with a hole in it."
     Case "frmFloppy"
         PictureReadOut = "A floppy disk picture, and a progress bar."
     Case "frmCal"
         PictureReadOut = "A picture of Cal, the caliper assistant."
     Case "frmSplash"
-        PictureReadOut = "The SolidCraft 98 splash screen."
+        PictureReadOut = "The SolidCraft 2000 splash screen."
     End Select
 End Function
 
@@ -650,6 +651,19 @@ Private Function DescribeForm(f As Form, ByVal bTop As Boolean, Optional ByVal s
             txt(n) = "  field """ & lb & """: [" & ctl.Text & "]" & foc
             CentreOf ctl.hWnd, x, y
             AddTarget lb, x, y
+        Case "ListBox"
+            ' every line, the picked one marked, each one a place to click
+            Dim li As Long, lr As RECT, lp As POINTAPI
+            txt(n) = "  list:"
+            For li = 0 To ctl.ListCount - 1
+                txt(n) = txt(n) & IIf(li, " /", "") & " [" & ctl.List(li) & "]" & IIf(li = ctl.ListIndex, " (picked)", "")
+                If SendMessage(ctl.hWnd, LB_GETITEMRECT, li, lr) <> -1 Then
+                    lp.X = (lr.Left + lr.Right) \ 2: lp.Y = (lr.Top + lr.Bottom) \ 2
+                    ClientToScreen ctl.hWnd, lp
+                    If lr.Bottom > 0 And lr.Top < ctl.Height / Screen.TwipsPerPixelY Then AddTarget ctl.List(li), lp.X, lp.Y
+                End If
+            Next li
+            txt(n) = txt(n) & " (click a line to pick it)"
         Case "CommandButton", "CheckBox", "OptionButton"
             cap = Clean(ctl.Caption)
             txt(n) = "  " & IIf(tn = "CommandButton", "button", LCase$(tn)) & " [" & cap & "]"

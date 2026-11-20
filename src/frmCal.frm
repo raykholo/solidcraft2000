@@ -64,11 +64,13 @@ Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 ' frmCal - Cal, the office-assistant caliper. Our own pixel art.
-' Pops up the first time you sketch a rectangle in a run. Turbo on or off.
+' Pops up the first time you sketch a rectangle in a run, and the first time
+' you round an edge (new in 2000: Cal knows two things). Turbo on or off.
 Option Explicit
 
 Public Silenced As Boolean
-Private mShown As Boolean        ' once per run is plenty
+Private mShown As String         ' the topics Cal has done this run; once each is plenty
+Private mTopic As String
 
 Private Declare Function ShowWindow Lib "user32" (ByVal hWnd As Long, ByVal nCmdShow As Long) As Long
 Private Declare Function SetWindowLong Lib "user32" Alias "SetWindowLongA" (ByVal hWnd As Long, ByVal nIndex As Long, ByVal dwNewLong As Long) As Long
@@ -82,14 +84,22 @@ Private Sub Form_Load()
     picCal.Refresh
 End Sub
 
-' Shows Cal near the bottom right of the main window.
-Public Sub Pop(ByVal sSay As String)
-    If Silenced Or mShown Then Exit Sub
-    mShown = True
+' Shows Cal near the bottom right of the main window. sTopic is "box" or
+' "fillet", and picks the tip and the buttons.
+Public Sub Pop(ByVal sSay As String, Optional ByVal sTopic As String = "box")
+    If Silenced Or InStr(mShown, "|" & sTopic & "|") > 0 Then Exit Sub
+    mShown = mShown & "|" & sTopic & "|"
+    mTopic = sTopic
     Load Me
     lblSay.Caption = sSay & vbCrLf & vbCrLf & "Would you like help?"
     cmdHelp.Visible = True
-    cmdNoHelp.Caption = "&Just draw the box without help"
+    If sTopic = "fillet" Then
+        cmdHelp.Caption = "&Get help with rounding the edge"
+        cmdNoHelp.Caption = "&Just round it without help"
+    Else
+        cmdHelp.Caption = "&Get help with drawing the box"
+        cmdNoHelp.Caption = "&Just draw the box without help"
+    End If
     Move frmMain.Left + frmMain.Width - Width - 480, frmMain.Top + frmMain.Height - Height - 900
     ' Owned by the main window so it stays on top of it, but shown without
     ' taking the focus: you can keep typing while Cal watches.
@@ -98,8 +108,13 @@ Public Sub Pop(ByVal sSay As String)
 End Sub
 
 Private Sub cmdHelp_Click()
-    lblSay.Caption = "Here's a tip: boxes usually want to be extruded." & vbCrLf & _
-        "Press E. If that doesn't work, press E harder."
+    If mTopic = "fillet" Then
+        lblSay.Caption = "Here's a tip: a fillet rounds every top edge of an extrude at once." & vbCrLf & _
+            "Picking which edges is coming in SolidCraft XP."
+    Else
+        lblSay.Caption = "Here's a tip: boxes usually want to be extruded." & vbCrLf & _
+            "Press E. If that doesn't work, press E harder."
+    End If
     cmdHelp.Visible = False
     cmdNoHelp.Caption = "&Thanks, Cal"
 End Sub
@@ -115,10 +130,10 @@ Private Sub cmdNever_Click()
     If Turbo Then
         frmCalPin.Pin
     Else
-        MsgBox "OK. Cal won't show this tip again." & vbCrLf & "(Until you restart SolidCraft 98.)", vbInformation, "Cal"
+        MsgBox "OK. Cal won't show this tip again." & vbCrLf & "(Until you restart SolidCraft 2000.)", vbInformation, "Cal"
     End If
 End Sub
 
 Private Sub picCal_Click()
-    lblSay.Caption = "Did you know? Every SolidCraft 98 file is also a perfectly good door stop, if you print it out."
+    lblSay.Caption = "Did you know? Every SolidCraft 2000 file is also a perfectly good door stop, if you print it out."
 End Sub

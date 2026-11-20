@@ -49,7 +49,7 @@ Private Function WriteStl(t() As TTri, ByVal n As Long, ByVal sPath As String, B
             mz = Min3(mz, .Z1, .Z2, .Z3)
         End With
     Next i
-    hdr = Left$("Binary STL from SolidCraft 98: " & sTitle & ", mm" & Space$(80), 80)
+    hdr = Left$("Binary STL from SolidCraft 2000: " & sTitle & ", mm" & Space$(80), 80)
     If FileExists(sPath) Then Kill sPath
     fh = FreeFile
     Open sPath For Binary Access Write As #fh

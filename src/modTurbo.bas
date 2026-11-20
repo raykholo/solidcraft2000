@@ -44,7 +44,7 @@ End Sub
 
 ' ---- The clock. Read, never set. ----
 
-' Starting SolidCraft98.exe with /Y2KTEST pretends it's a minute to
+' Starting SolidCraft2000.exe with /Y2KTEST pretends it's a minute to
 ' midnight on 31 Dec 1999, so the Y2K bug can be seen without touching the
 ' PC's clock.
 Public Sub InitClock()

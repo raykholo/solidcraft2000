@@ -58,7 +58,7 @@ Private Sub Form_Activate()
             "The current part will not be terminated. It is fine. It was|" & _
             "never in any danger.|" & _
             "|" & _
-            "*  Press any key to return to SolidCraft 98.|" & _
+            "*  Press any key to return to SolidCraft 2000.|" & _
             "*  Then type a number that isn't zero.", "|")
         x = (.ScaleWidth - .TextWidth(lines(0))) / 2
         If x < 8 Then x = 8

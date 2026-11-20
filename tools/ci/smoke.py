@@ -1,0 +1,132 @@
+"""Runs the built SolidCraft 2000 on the CI runner and takes screenshots.
+
+    python tools/ci/smoke.py out/SolidCraft2000.exe shots
+
+1. The splash (/SPLASH holds it for 15 seconds).
+2. Through the remote control (/REMOTE, port 9898, this PC only): a filleted
+   block with a hole, a sheet-metal part folded and flat, the personalized
+   File menu, and the Upgrade Wizard. Every answer goes in shots/remote.log.
+
+Fails if the program won't start, or an action answers "error:" where it
+shouldn't.
+"""
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+from PIL import ImageGrab
+
+EXE, OUT = Path(sys.argv[1]).resolve(), Path(sys.argv[2])
+OUT.mkdir(parents=True, exist_ok=True)
+log = open(OUT / "remote.log", "w", encoding="utf-8")
+problems = []
+
+
+def shot(name):
+    ImageGrab.grab().save(OUT / f"{name}.png")
+    print(f"screenshot {name}.png", flush=True)
+
+
+# 1. the splash
+p = subprocess.Popen([str(EXE), "/SPLASH"])
+time.sleep(6)
+shot("splash")
+p.kill()
+p.wait()
+time.sleep(1)
+
+# 2. driven by the remote control
+p = subprocess.Popen([str(EXE), "/REMOTE"])
+s = None
+for _ in range(60):
+    try:
+        s = socket.create_connection(("127.0.0.1", 9898), timeout=60)
+        break
+    except OSError:
+        time.sleep(1)
+if s is None:
+    sys.exit("SolidCraft 2000 never answered on port 9898")
+f = s.makefile("rw", encoding="latin-1", newline="\r\n")
+
+
+def say(cmd, ok=True):
+    """Sends one command and returns its answer (the lines before ".")."""
+    f.write(cmd + "\r\n")
+    f.flush()
+    lines = []
+    while True:
+        line = f.readline()
+        if not line:
+            raise SystemExit("the connection closed")
+        line = line.rstrip("\r\n")
+        if line == ".":
+            break
+        lines.append(line)
+    text = "\n".join(lines)
+    log.write(f"> {cmd}\n{text}\n\n")
+    log.flush()
+    if ok and text.lstrip().lower().startswith("error"):
+        problems.append(f"{cmd}: {text.splitlines()[0]}")
+    return text
+
+
+say("look")
+# a block, its top edges filleted, a hole in the top
+say("key r"); say("key enter")
+say("key e"); say("key enter")
+say("menu Features > Fillet..."); say("key enter")
+say("key h"); say("key enter")
+say("key s")
+say("wait 1500")
+shot("fillet")
+say("look")
+
+# sheet metal, in a new part
+say("key ctrl+n")
+say("key r"); say("key enter")
+say("menu Sheet Metal > Base Flange...")
+say("key enter")                       # "needs a bend table"
+shot("bendtable")
+say("key enter"); say("key enter")     # material, thickness
+say("key enter")                       # Finish
+say("key enter")                       # the base flange's numbers
+say("menu Sheet Metal > Edge Flange..."); say("key enter")
+say("menu Sheet Metal > Edge Flange..."); say("key enter")
+say("wait 1500")
+shot("sheetmetal")
+say("menu Sheet Metal > Flat Pattern")
+say("wait 1000")
+shot("flatpattern")
+say("look")
+say("key enter")
+
+# the personalized File menu: Save As is hidden until "Show all items"
+t = say("menu File > Save As...", ok=False)
+if "error" not in t.lower():
+    problems.append("menu File > Save As... worked: it should be hidden")
+say("key escape"); say("key escape")
+say("menu File > Show all items")
+say("wait 800")
+shot("menu-expanded")
+say("key escape"); say("key escape")
+
+# the Upgrade Wizard
+say("menu Help > Upgrade from SolidCraft 98...")
+say("wait 800")
+shot("upgrade")
+say("look")
+say("key escape")
+say("key enter")
+
+try:
+    say("quit")
+except SystemExit:
+    pass
+p.wait(timeout=30)
+log.close()
+if problems:
+    print("PROBLEMS:\n  " + "\n  ".join(problems))
+    sys.exit(1)
+print("smoke test OK")

@@ -7,6 +7,7 @@ Option Explicit
 
 Public Const PI As Double = 3.14159265358979
 Private Const CIRCLE_SEGS As Integer = 32
+Public Const FILLET_STEPS As Integer = 4     ' quarter-circle steps in a fillet's wireframe
 
 Public Type TEdge
     X1 As Double
@@ -24,8 +25,8 @@ Public Const COL_SOLID As Long = &H0&            ' black
 Public Const COL_HOLE As Long = &H80&            ' dark red
 Public Const COL_AXIS As Long = &H808080
 
-' Adds one segment to the list, growing it as needed.
-Private Sub AddEdge(e() As TEdge, n As Long, ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
+' Adds one segment to the list, growing it as needed. (Public for modSheetMetal.)
+Public Sub AddEdge(e() As TEdge, n As Long, ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
                     ByVal x2 As Double, ByVal y2 As Double, ByVal z2 As Double, ByVal c As Long)
     If n > UBound(e) Then ReDim Preserve e(0 To UBound(e) * 2 + 1)
     e(n).X1 = x1: e(n).Y1 = y1: e(n).Z1 = z1
@@ -48,13 +49,17 @@ End Sub
 ' many. seam(j) is True where a solid built on it should show a vertical edge:
 ' the corners of a rectangle, the ends of each rounded corner, every 4th
 ' point of a circle. nCircle is how many points a full circle gets.
+' bKeepCount: a sharp rectangle gets as many points as a rounded one (its
+' "corners" have radius 0), so the outlines a fillet steps through all line up.
 Public Function ProfilePoints(f As TFeature, px() As Double, py() As Double, seam() As Boolean, _
-                              Optional ByVal nCircle As Integer = CIRCLE_SEGS) As Integer
+                              Optional ByVal nCircle As Integer = CIRCLE_SEGS, _
+                              Optional ByVal bKeepCount As Boolean = False) As Integer
     Dim i As Integer, c As Integer, j As Integer, k As Integer, n As Integer
     Dim r As Double, cx As Double, cy As Double, a As Double
     If f.Kind = FK_SKETCH_RECT Then
         r = f.P3
-        If r <= 0 Then
+        If r < 0 Then r = 0
+        If r <= 0 And Not bKeepCount Then
             ReDim px(0 To 3): ReDim py(0 To 3): ReDim seam(0 To 3)
             px(0) = f.X: py(0) = f.Y
             px(1) = f.X + f.P1: py(1) = f.Y
@@ -141,7 +146,7 @@ End Sub
 ' put on. A blind hole goes down its depth; "through all" keeps going through
 ' every extruded body stacked underneath that the hole fits inside.
 Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Double)
-    Dim h As TFeature, j As Integer, b0 As Double, b1 As Double, moved As Boolean
+    Dim h As TFeature, j As Integer, b0 As Double, b1 As Double, moved As Boolean, tf As TFeature
     Const EPS As Double = 0.000001
     h = d.Features(i)
     ExtrudeRange d, h.Ref, zBot, zTop
@@ -156,7 +161,8 @@ Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Do
                 If RefOk(d, j) Then
                     ExtrudeRange d, j, b0, b1
                     If b0 < zBot - EPS And b1 >= zBot - EPS And b1 <= zTop + EPS Then
-                        If ProfileContains(d.Features(d.Features(j).Ref), h.X, h.Y, h.P1 / 2) Then
+                        tf = TopFace(d, j)
+                        If ProfileContains(tf, h.X, h.Y, h.P1 / 2) Then
                             zBot = b0
                             moved = True
                         End If
@@ -167,6 +173,79 @@ Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Do
     Loop While moved
 End Sub
 
+' ---- Fillets (new in 2000) ----
+'
+' A fillet rounds the top edges of one extrude with a quarter circle of
+' radius P1. Going up the fillet, the body's outline shrinks: at angle a it is
+' the sketch moved in by P1 * (1 - Cos(a)), at height top - P1 + P1 * Sin(a).
+' Every outline SolidCraft 2000 can sketch is convex, so moving it in is
+' exact: a rectangle gets smaller and its corner radius goes down (to a sharp
+' corner if need be), a circle's radius goes down.
+
+' The sketch s, moved in by off on every side.
+Public Function InsetSketch(s As TFeature, ByVal off As Double) As TFeature
+    Dim t As TFeature
+    t = s
+    If s.Kind = FK_SKETCH_RECT Then
+        t.X = s.X + off: t.Y = s.Y + off
+        t.P1 = s.P1 - 2 * off: t.P2 = s.P2 - 2 * off
+        t.P3 = s.P3 - off
+        If t.P3 < 0 Then t.P3 = 0
+    Else
+        t.P1 = s.P1 - off
+    End If
+    InsetSketch = t
+End Function
+
+' Does fillet j fit its extrude? Its radius must leave some top face, and
+' can't be more than the extrude is tall.
+Public Function FilletFits(d As TDesign, ByVal j As Integer) As Boolean
+    Dim f As TFeature, s As TFeature, b As Integer
+    Const EPS As Double = 0.000001
+    f = d.Features(j)
+    b = f.Ref
+    If b < 1 Or b >= j Then Exit Function
+    If d.Features(b).Kind <> FK_EXTRUDE Then Exit Function
+    If d.Features(b).Ref < 1 Or d.Features(b).Ref >= b Then Exit Function
+    s = d.Features(d.Features(b).Ref)
+    If f.P1 <= 0 Or f.P1 > Abs(d.Features(b).P1) + EPS Then Exit Function
+    If s.Kind = FK_SKETCH_RECT Then
+        If s.P1 <= 2 * f.P1 + EPS Or s.P2 <= 2 * f.P1 + EPS Then Exit Function
+    ElseIf s.Kind = FK_SKETCH_CIRCLE Then
+        If s.P1 <= f.P1 + EPS Then Exit Function
+    Else
+        Exit Function
+    End If
+    FilletFits = True
+End Function
+
+' The fillet on extrude b, or 0. Only the first one that fits counts.
+Public Function FilletOf(d As TDesign, ByVal b As Integer) As Integer
+    Dim j As Integer
+    For j = b + 1 To d.Count
+        If d.Features(j).Kind = FK_FILLET And d.Features(j).Ref = b And d.Features(j).Suppressed = 0 Then
+            If FilletFits(d, j) Then
+                FilletOf = j
+                Exit Function
+            End If
+        End If
+    Next j
+End Function
+
+Public Function FilletRadius(d As TDesign, ByVal b As Integer) As Double
+    Dim j As Integer
+    j = FilletOf(d, b)
+    If j > 0 Then FilletRadius = d.Features(j).P1
+End Function
+
+' The flat part of extrude b's top face, as a sketch: its own sketch, moved
+' in by its fillet. Holes and anything standing on it have to fit in here.
+Public Function TopFace(d As TDesign, ByVal b As Integer) As TFeature
+    Dim s As TFeature
+    s = d.Features(d.Features(b).Ref)
+    TopFace = InsetSketch(s, FilletRadius(d, b))
+End Function
+
 ' Turns the design into edges. Returns the edge count.
 Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     Dim n As Long, i As Integer, j As Integer, k As Integer
@@ -174,13 +253,14 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     Dim px() As Double, py() As Double, np As Integer, seam() As Boolean
     Dim z0 As Double, z1 As Double, zt As Double, r As Double
     Dim steps As Integer, a0 As Double, a1 As Double, sz As Double
-    Dim used() As Boolean
+    Dim used() As Boolean, fr As Double, zf As Double, m As Integer
+    Dim qx() As Double, qy() As Double, qseam() As Boolean, ox() As Double, oy() As Double
 
     ReDim e(0 To 255)
     If d.Count > 0 Then ReDim used(1 To d.Count) Else ReDim used(0 To 0)
     For i = 1 To d.Count
         Select Case d.Features(i).Kind
-        Case FK_EXTRUDE, FK_REVOLVE
+        Case FK_EXTRUDE, FK_REVOLVE, FK_SM_BASE
             If d.Features(i).Ref >= 1 And d.Features(i).Ref <= d.Count Then used(d.Features(i).Ref) = True
         End Select
     Next i
@@ -202,13 +282,42 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
             Case FK_EXTRUDE
                 s = d.Features(f.Ref)
                 ExtrudeRange d, i, z0, z1
-                np = ProfilePoints(s, px, py, seam)
-                For j = 0 To np - 1
-                    k = (j + 1) Mod np
-                    AddEdge e, n, px(j), py(j), z0, px(k), py(k), z0, COL_SOLID
-                    AddEdge e, n, px(j), py(j), z1, px(k), py(k), z1, COL_SOLID
-                    If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), z1, COL_SOLID
-                Next j
+                fr = FilletRadius(d, i)
+                If fr <= 0 Then
+                    np = ProfilePoints(s, px, py, seam)
+                    For j = 0 To np - 1
+                        k = (j + 1) Mod np
+                        AddEdge e, n, px(j), py(j), z0, px(k), py(k), z0, COL_SOLID
+                        AddEdge e, n, px(j), py(j), z1, px(k), py(k), z1, COL_SOLID
+                        If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), z1, COL_SOLID
+                    Next j
+                Else
+                    ' straight sides up to where the fillet starts, then the
+                    ' quarter circles at each seam, and the smaller top
+                    zf = z1 - fr
+                    np = ProfilePoints(s, px, py, seam, CIRCLE_SEGS, True)
+                    For j = 0 To np - 1
+                        k = (j + 1) Mod np
+                        AddEdge e, n, px(j), py(j), z0, px(k), py(k), z0, COL_SOLID
+                        AddEdge e, n, px(j), py(j), zf, px(k), py(k), zf, COL_SOLID
+                        If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), zf, COL_SOLID
+                    Next j
+                    ox = px: oy = py
+                    For m = 1 To FILLET_STEPS
+                        a0 = (PI / 2) * (m - 1) / FILLET_STEPS
+                        a1 = (PI / 2) * m / FILLET_STEPS
+                        b = InsetSketch(s, fr * (1 - Cos(a1)))
+                        ProfilePoints b, qx, qy, qseam, CIRCLE_SEGS, True
+                        For j = 0 To np - 1
+                            If seam(j) Then AddEdge e, n, ox(j), oy(j), zf + fr * Sin(a0), qx(j), qy(j), zf + fr * Sin(a1), COL_SOLID
+                        Next j
+                        ox = qx: oy = qy
+                    Next m
+                    For j = 0 To np - 1
+                        k = (j + 1) Mod np
+                        AddEdge e, n, ox(j), oy(j), z1, ox(k), oy(k), z1, COL_SOLID
+                    Next j
+                End If
 
             Case FK_REVOLVE
                 ' Spin the profile about the Y axis of its plane.
@@ -248,6 +357,8 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
                     a0 = j * PI / 2
                     AddEdge e, n, f.X + r * Cos(a0), f.Y + r * Sin(a0), zt, f.X + r * Cos(a0), f.Y + r * Sin(a0), z0, COL_HOLE
                 Next j
+            Case Else
+                If SM_IsSheetMetal(f.Kind) Then SM_Edges d, i, e, n
             End Select
         End If
     Next i
@@ -256,7 +367,7 @@ End Function
 
 ' A feature is only drawn if what it is built on exists and comes before it.
 Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
-    Dim f As TFeature
+    Dim f As TFeature, tf As TFeature
     f = d.Features(i)
     Select Case f.Kind
     Case FK_SKETCH_RECT, FK_SKETCH_CIRCLE
@@ -269,11 +380,20 @@ Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
         If f.Ref >= 1 And f.Ref < i Then RefOk = IsSketch(d.Features(f.Ref).Kind)
     Case FK_FOREIGN
         RefOk = True          ' nothing to build, nothing to break
+    Case FK_SM_BASE, FK_SM_EDGE, FK_SM_FLAT
+        RefOk = SM_RefOk(d, i)
+    Case FK_FILLET
+        If f.Ref >= 1 And f.Ref < i Then
+            If d.Features(f.Ref).Kind = FK_EXTRUDE Then
+                If RefOk(d, f.Ref) Then RefOk = (FilletOf(d, f.Ref) = i)
+            End If
+        End If
     Case FK_HOLE
         If f.Ref >= 1 And f.Ref < i Then
             If d.Features(f.Ref).Kind = FK_EXTRUDE Then
                 If RefOk(d, f.Ref) Then
-                    RefOk = ProfileContains(d.Features(d.Features(f.Ref).Ref), f.X, f.Y, f.P1 / 2)
+                    tf = TopFace(d, f.Ref)
+                    RefOk = ProfileContains(tf, f.X, f.Y, f.P1 / 2)
                 End If
             End If
         End If

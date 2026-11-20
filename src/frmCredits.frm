@@ -58,11 +58,14 @@ Private Sub Form_Load()
         mSx(i) = Rnd * 2 - 1: mSy(i) = Rnd * 2 - 1: mSz(i) = Rnd
     Next i
     mLines = Split( _
-        "SOLIDCRAFT 98|THE PROFESSIONAL EDITION||" & _
+        "SOLIDCRAFT 2000|THE PROFESSIONAL EDITION||" & _
         "A FORTY-THOUSAND-LINE PRODUCTION||" & _
         "GEOMETRY KERNEL|MODKERNEL.BAS (ALL OF IT)||" & _
         "CONSTRAINT SOLVER|THE VARIANT SQUAD||" & _
         "CHIEF REGENERATE CLICKER|PRESS F5 THREE TIMES||" & _
+        "FILLETS|A QUARTER OF A CIRCLE, FOUR TIMES||" & _
+        "SHEET METAL|SOME ASSEMBLY REQUIRED||" & _
+        "PERSONALIZED MENUS|WE HID THIS LINE||" & _
         "ICONS|16 COLOURS, NO UNDO||" & _
         "FILE FORMAT|PUT #1, , DESIGN||" & _
         "QUALITY ASSURANCE|THE MACHINE SHOP||" & _
@@ -70,8 +73,8 @@ Private Sub Form_Load()
         "SPECIAL THANKS|THE ONE PC NOBODY IS ALLOWED TO UPDATE||" & _
         "NO PARTS WERE HARMED IN THE MAKING OF THIS SOFTWARE||||" & _
         "PRESS ANY KEY", "|")
-    mMsg = "   GREETINGS TO EVERYONE STILL RUNNING WINDOWS 98 SE ...  " & _
-           "TURBO OFF IS FASTER THAN TURBO ON ...  BEST VIEWED AT 800 X 600 ...  "
+    mMsg = "   GREETINGS TO EVERYONE WHO SURVIVED Y2K ...  STILL NOT A WORD ABOUT 2038 ...  " & _
+           "TURBO OFF IS FASTER THAN TURBO ON ...  BEST VIEWED AT 1024 X 768 ...  "
     mScroll = picDemo.ScaleHeight
     tmrFrame.Enabled = True
 End Sub

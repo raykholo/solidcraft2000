@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin VB.MDIForm frmMain
    BackColor       =   &H8000000C&
-   Caption         =   "SolidCraft 98"
+   Caption         =   "SolidCraft 2000"
    ClientHeight    =   9600
    ClientLeft      =   165
    ClientTop       =   855
@@ -102,6 +102,11 @@ Begin VB.MDIForm frmMain
          Index           =   9
          Tag             =   "Exit"
       End
+      Begin VB.Menu mnuFileItem
+         Caption         =   "Show &all items"
+         Index           =   10
+         Tag             =   "More"
+      End
    End
    Begin VB.Menu mnuEdit
       Caption         =   "&Edit"
@@ -157,6 +162,43 @@ Begin VB.MDIForm frmMain
          Index           =   2
          Tag             =   "Hole"
       End
+      Begin VB.Menu mnuFeatureItem
+         Caption         =   "Fi&llet..."
+         Index           =   3
+         Tag             =   "Fillet"
+      End
+      Begin VB.Menu mnuFeatureItem
+         Caption         =   "Show &all items"
+         Index           =   4
+         Tag             =   "More"
+      End
+   End
+   Begin VB.Menu mnuSheet
+      Caption         =   "Sheet &Metal"
+      Begin VB.Menu mnuSheetItem
+         Caption         =   "&Base Flange..."
+         Index           =   0
+         Tag             =   "SMBase"
+      End
+      Begin VB.Menu mnuSheetItem
+         Caption         =   "&Edge Flange..."
+         Index           =   1
+         Tag             =   "SMEdge"
+      End
+      Begin VB.Menu mnuSheetItem
+         Caption         =   "&Flat Pattern"
+         Index           =   2
+         Tag             =   "SMFlat"
+      End
+      Begin VB.Menu mnuSheetItem
+         Caption         =   "-"
+         Index           =   3
+      End
+      Begin VB.Menu mnuSheetItem
+         Caption         =   "Bend &Table Wizard..."
+         Index           =   4
+         Tag             =   "BendTable"
+      End
    End
    Begin VB.Menu mnuView
       Caption         =   "&View"
@@ -190,6 +232,11 @@ Begin VB.MDIForm frmMain
          Index           =   5
          Tag             =   "Turbo"
       End
+      Begin VB.Menu mnuViewItem
+         Caption         =   "Show &all items"
+         Index           =   6
+         Tag             =   "More"
+      End
    End
    Begin VB.Menu mnuWindow
       Caption         =   "&Window"
@@ -219,11 +266,16 @@ Begin VB.MDIForm frmMain
          Tag             =   "Help"
       End
       Begin VB.Menu mnuHelpItem
+         Caption         =   "&Upgrade from SolidCraft 98..."
+         Index           =   3
+         Tag             =   "Upgrade"
+      End
+      Begin VB.Menu mnuHelpItem
          Caption         =   "-"
          Index           =   1
       End
       Begin VB.Menu mnuHelpItem
-         Caption         =   "&About SolidCraft 98..."
+         Caption         =   "&About SolidCraft 2000..."
          Index           =   2
          Tag             =   "About"
       End
@@ -253,6 +305,9 @@ End Type
 
 Private Declare Function GetCursorPos Lib "user32" (lpPoint As POINTAPI) As Long
 Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As Long, lpRect As RECT) As Long
+Private Declare Function GetMenu Lib "user32" (ByVal hWnd As Long) As Long
+Private Declare Function GetMenuItemRect Lib "user32" (ByVal hWnd As Long, ByVal hMenu As Long, ByVal uItem As Long, lprcItem As RECT) As Long
+Private Declare Function ScreenToClient Lib "user32" (ByVal hWnd As Long, lpPoint As POINTAPI) As Long
 
 Private mLastMsg As String
 
@@ -265,10 +320,16 @@ Private Sub MDIForm_Load()
     mnuFeatureItem(0).Caption = "&Extrude..." & vbTab & "E"
     mnuFeatureItem(1).Caption = "Re&volve..." & vbTab & "V"
     mnuFeatureItem(2).Caption = "&Hole..." & vbTab & "H"
+    mnuFeatureItem(3).Caption = "Fi&llet... (New!)" & vbTab & "L"
     mnuViewItem(0).Caption = "&Isometric" & vbTab & "I"
     mnuViewItem(1).Caption = "Zoom to &Fit" & vbTab & "F"
     mnuViewItem(3).Caption = "&Shaded" & vbTab & "S"
     mnuEditItem(2).Caption = "&Edit Feature..." & vbTab & "Enter"
+    ' Personalized Menus: short until you ask for the rest
+    mnuFileItem(10).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
+    mnuFeatureItem(4).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
+    mnuViewItem(6).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
+    Personalize
     BuildToolbar
     BuildStatusBar
     ToolbarDraw picToolbar
@@ -289,6 +350,7 @@ Private Sub BuildToolbar()
     ToolbarAdd "Extrude", "Extrude (E)"
     ToolbarAdd "Revolve", "Revolve (V)"
     ToolbarAdd "Hole", "Hole (H)"
+    ToolbarAdd "Fillet", "Fillet (L). New in SolidCraft 2000!"
     ToolbarAdd "", ""
     ToolbarAdd "Orbit", "Isometric View (I). Drag in the viewport to orbit."
     ToolbarAdd "Shaded", "Shaded (S). Rendered in software, properly."
@@ -401,8 +463,84 @@ Private Sub tmrHover_Timer()
     End If
 End Sub
 
+' ---- Personalized Menus (modAdaptive) ----
+
+' Hides or shows every item of the three short menus. Called whenever a menu
+' opens (a top-level menu's Click comes just before it drops down).
+Public Sub Personalize()
+    ShortMenu mnuFileItem
+    ShortMenu mnuFeatureItem
+    ShortMenu mnuViewItem
+End Sub
+
+' A separator shows only if something after it does, and "Show all items"
+' only if something is hidden.
+Private Sub ShortMenu(items As Object)
+    Dim i As Integer, j As Integer, anyHidden As Boolean, after As Boolean, t As String
+    For i = items.LBound To items.UBound
+        t = items(i).Tag
+        If t <> MORE_TAG And items(i).Caption <> "-" Then
+            If Not AdaptiveShows(t) Then anyHidden = True
+        End If
+    Next i
+    ' the chevron first, so the menu is never left with nothing in it
+    items(items.UBound).Visible = anyHidden
+    For i = items.LBound To items.UBound - 1
+        t = items(i).Tag
+        If items(i).Caption = "-" Then
+            after = False
+            For j = i + 1 To items.UBound - 1
+                If items(j).Caption <> "-" And AdaptiveShows(items(j).Tag) Then after = True
+            Next j
+            items(i).Visible = after
+        Else
+            items(i).Visible = AdaptiveShows(t)
+        End If
+    Next i
+End Sub
+
+' "Show all items": everything back, and the same menu straight open again,
+' right under its title, the way it was in 2000.
+Private Sub ShowAllItems(mnu As Menu, ByVal nPos As Long)
+    Dim rc As RECT, pt As POINTAPI
+    AdaptiveExpand
+    Personalize
+    ' a maximized part puts its own icon at the left of the menu bar
+    If Not ActiveForm Is Nothing Then
+        If ActiveForm.WindowState = vbMaximized Then nPos = nPos + 1
+    End If
+    GetMenuItemRect hWnd, GetMenu(hWnd), nPos, rc
+    pt.X = rc.Left: pt.Y = rc.Bottom
+    ScreenToClient hWnd, pt
+    PopupMenu mnu, , pt.X * Screen.TwipsPerPixelX, pt.Y * Screen.TwipsPerPixelY
+End Sub
+
+' Runs a menu item: "Show all items" opens the menu again, anything else
+' joins the short menu.
+Private Sub MenuPicked(ByVal sTag As String, mnu As Menu, ByVal nPos As Long)
+    If sTag = MORE_TAG Then
+        ShowAllItems mnu, nPos
+        Exit Sub
+    End If
+    AdaptiveUsed sTag
+    Personalize
+    RunCommand sTag
+End Sub
+
+Private Sub mnuFile_Click()
+    Personalize
+End Sub
+
+Private Sub mnuFeature_Click()
+    Personalize
+End Sub
+
+Private Sub mnuView_Click()
+    Personalize
+End Sub
+
 Private Sub mnuFileItem_Click(Index As Integer)
-    RunCommand mnuFileItem(Index).Tag
+    MenuPicked mnuFileItem(Index).Tag, mnuFile, 0
 End Sub
 
 Private Sub mnuEditItem_Click(Index As Integer)
@@ -414,11 +552,15 @@ Private Sub mnuSketchItem_Click(Index As Integer)
 End Sub
 
 Private Sub mnuFeatureItem_Click(Index As Integer)
-    RunCommand mnuFeatureItem(Index).Tag
+    MenuPicked mnuFeatureItem(Index).Tag, mnuFeature, 3
 End Sub
 
 Private Sub mnuViewItem_Click(Index As Integer)
-    RunCommand mnuViewItem(Index).Tag
+    MenuPicked mnuViewItem(Index).Tag, mnuView, 5
+End Sub
+
+Private Sub mnuSheetItem_Click(Index As Integer)
+    RunCommand mnuSheetItem(Index).Tag
 End Sub
 
 Private Sub mnuWindowItem_Click(Index As Integer)

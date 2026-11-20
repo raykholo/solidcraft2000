@@ -1,9 +1,9 @@
-# Builds SolidCraft98.exe with twinBASIC, unattended. Used by CI; works on any
+# Builds SolidCraft2000.exe with twinBASIC, unattended. Used by CI; works on any
 # Windows PC with twinBASIC unzipped somewhere and Python 3 on the PATH.
 #
 #   tools\ci\build.ps1 -TwinBasic C:\tB -Upx C:\upx\upx.exe -Out out
 #
-# Leaves out\SolidCraft98.exe (as built) and out\SC98.EXE (UPX-packed, for the
+# Leaves out\SolidCraft2000.exe (as built) and out\SC2000.EXE (UPX-packed, for the
 # floppy), and fails if the packed EXE doesn't fit on a 1.44 MB floppy.
 param(
     [Parameter(Mandatory)] [string] $TwinBasic,
@@ -28,32 +28,32 @@ Set-ItemProperty $key GENERAL (Get-Content -Raw (Join-Path $PSScriptRoot "twinba
 
 # 2. VB6 project -> twinBASIC source folder -> .twinproj
 Remove-Item -Recurse -Force build -ErrorAction SilentlyContinue
-python tools/vb2tb.py src/SolidCraft98.vbp build/src
+python tools/vb2tb.py src/SolidCraft2000.vbp build/src
 if ($LASTEXITCODE) { throw "vb2tb failed" }
-python tools/impexp.py import build/SolidCraft98.twinproj build/src --overwrite
+python tools/impexp.py import build/SolidCraft2000.twinproj build/src --overwrite
 if ($LASTEXITCODE) { throw "impexp failed" }
 
 # 3. Build. On a compile error twinBASIC doesn't exit, so give up after a while.
-$proj = Join-Path $Root "build\SolidCraft98.twinproj"
-$exe = Join-Path $Root "build\Build\SolidCraft98.exe"
+$proj = Join-Path $Root "build\SolidCraft2000.twinproj"
+$exe = Join-Path $Root "build\Build\SolidCraft2000.exe"
 $p = Start-Process -FilePath (Join-Path $TwinBasic "twinBASIC.exe") -ArgumentList "`"$proj`" --buildAndExit32" -PassThru
 if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
     Get-Process twinBASIC* -ErrorAction SilentlyContinue | Stop-Process -Force
-    throw "twinBASIC didn't finish in $TimeoutSeconds s: probably a compile error. Open build\SolidCraft98.twinproj in the IDE to see it."
+    throw "twinBASIC didn't finish in $TimeoutSeconds s: probably a compile error. Open build\SolidCraft2000.twinproj in the IDE to see it."
 }
 Get-Process twinBASIC* -ErrorAction SilentlyContinue | Stop-Process -Force
 if (-not (Test-Path $exe)) { throw "twinBASIC exited without building $exe" }
 
 # 4. The EXE, and a UPX-packed copy for the floppy, which has to fit.
 New-Item -ItemType Directory -Force $Out | Out-Null
-Copy-Item $exe (Join-Path $Out "SolidCraft98.exe") -Force
-$packed = Join-Path $Out "SC98.EXE"
+Copy-Item $exe (Join-Path $Out "SolidCraft2000.exe") -Force
+$packed = Join-Path $Out "SC2000.EXE"
 Remove-Item $packed -ErrorAction SilentlyContinue
 & $Upx --best --lzma -q -o $packed $exe | Out-Host
 if ($LASTEXITCODE) { throw "UPX failed" }
 $built = (Get-Item $exe).Length
 $size = (Get-Item $packed).Length
-Write-Host ("SolidCraft98.exe: {0:N0} bytes; packed for the floppy: {1:N0} of {2:N0} bytes ({3:P0})" -f $built, $size, $FloppyBytes, ($size / $FloppyBytes))
+Write-Host ("SolidCraft2000.exe: {0:N0} bytes; packed for the floppy: {1:N0} of {2:N0} bytes ({3:P0})" -f $built, $size, $FloppyBytes, ($size / $FloppyBytes))
 if ($size -gt $FloppyBytes) {
     throw "The packed EXE is $size bytes: it no longer fits on a 1.44 MB floppy ($FloppyBytes bytes)."
 }

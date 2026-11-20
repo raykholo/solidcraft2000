@@ -23,6 +23,8 @@ Public Sub RunCommand(ByVal sCmd As String)
     Case "Extrude": CmdExtrude
     Case "Revolve": CmdRevolve
     Case "Hole": CmdHole
+    Case "Fillet": CmdFillet
+    Case "SMBase", "SMEdge", "SMFlat", "BendTable": SM_Command sCmd
     Case "Undo": CmdUndo
     Case "Edit": CmdEdit
     Case "Delete": CmdDelete
@@ -40,9 +42,10 @@ Public Sub RunCommand(ByVal sCmd As String)
 
     Case "Help": CmdHelp
     Case "About": frmAbout.Show vbModal, frmMain
+    Case "Upgrade": frmUpgrade.Show vbModal, frmMain
     Case Else
         MsgBox "Command '" & sCmd & "' is not implemented yet." & vbCrLf & _
-            "It is scheduled for SolidCraft 2000.", vbInformation, App.Title
+            "It is scheduled for SolidCraft XP.", vbInformation, App.Title
     End Select
 End Sub
 
@@ -93,7 +96,7 @@ End Sub
 Private Sub CmdOpen()
     Dim sPath As String, slot As Integer, p As frmPart
     sPath = frmMain.AskFileName(False, "", _
-        "All SolidCraft files (*.sc98, *.solidcraft)|*.sc98;*.solidcraft|SolidCraft 98 Parts (*.sc98)|*.sc98|SolidCraft Designs (*.solidcraft)|*.solidcraft", PART_EXT)
+        "All SolidCraft files (*.sc2, *.sc98, *.solidcraft)|*.sc2;*.sc98;*.solidcraft|SolidCraft 2000 Parts (*.sc2)|*.sc2|SolidCraft 98 Parts (*.sc98)|*.sc98|SolidCraft Designs (*.solidcraft)|*.solidcraft", PART_EXT)
     If Len(sPath) = 0 Then Exit Sub
     slot = NewDocSlot()
     If slot = 0 Then
@@ -101,7 +104,7 @@ Private Sub CmdOpen()
         Exit Sub
     End If
     If IsSolidCraftDesign(sPath) Then
-        ' a design from SolidCraft itself: rebuilt here, saved as a new .sc98
+        ' a design from SolidCraft itself: rebuilt here, saved as a new .sc2
         Screen.MousePointer = vbHourglass
         If Not ImportSolidCraft(sPath, Docs(slot)) Then
             Screen.MousePointer = vbDefault
@@ -117,6 +120,8 @@ Private Sub CmdOpen()
         End If
         DocPath(slot) = sPath
         Docs(slot).Title = FileTitle(sPath)
+        ' an upgraded SolidCraft 98 part is saved as a new .sc2, never over the old file
+        If LCase$(Right$(sPath, 5)) = ".sc98" Then DocPath(slot) = ""
     End If
     Set p = New frmPart
     p.Attach slot
@@ -235,6 +240,11 @@ End Sub
 
 ' ---- Features ----
 
+' For modSheetMetal: adds f to the part, as the menus do.
+Public Function CommitFeature(p As frmPart, f As TFeature) As Boolean
+    CommitFeature = Commit(p, f)
+End Function
+
 Private Function Commit(p As frmPart, f As TFeature) As Boolean
     Dim i As Integer
     i = AddFeature(Docs(p.DocIndex), f)
@@ -248,6 +258,7 @@ Private Function Commit(p As frmPart, f As TFeature) As Boolean
     Status FeatureName(Docs(p.DocIndex), i) & " created: " & Describe(Docs(p.DocIndex), i)
     Commit = True
     If f.Kind = FK_SKETCH_RECT Then frmCal.Pop "It looks like you're drawing a box."
+    If f.Kind = FK_FILLET Then frmCal.Pop "It looks like you're trying to round an edge!", "fillet"
 End Function
 
 Private Sub CmdSketchRect()
@@ -294,12 +305,13 @@ Private Sub CmdRevolve()
     If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
 End Sub
 
-' The extrude picked in the tree or timeline (a hole counts as its extrude), or 0.
+' The extrude picked in the tree or timeline (a hole or a fillet counts as
+' its extrude), or 0.
 Private Function SelectedExtrude(p As frmPart) As Integer
     Dim b As Integer
     b = p.SelectedFeature()
     If b = 0 Then Exit Function
-    If Docs(p.DocIndex).Features(b).Kind = FK_HOLE Then b = Docs(p.DocIndex).Features(b).Ref
+    If Docs(p.DocIndex).Features(b).Kind = FK_HOLE Or Docs(p.DocIndex).Features(b).Kind = FK_FILLET Then b = Docs(p.DocIndex).Features(b).Ref
     If Docs(p.DocIndex).Features(b).Kind = FK_EXTRUDE Then SelectedExtrude = b
 End Function
 
@@ -318,6 +330,42 @@ Private Sub CmdHole()
     f.Ref = b
     f.P1 = 8
     SketchCentre s, f.X, f.Y
+    If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
+End Sub
+
+' NEW IN 2000. A fillet rounds the top edges of the selected extrude (a hole
+' or a fillet counts as its extrude), or of the last one.
+Private Sub CmdFillet()
+    Dim p As frmPart, f As TFeature, b As Integer, j As Integer, s As TFeature, m As Double
+    If Not NeedPart(p) Then Exit Sub
+    b = SelectedExtrude(p)
+    If b = 0 Then b = LastSolid(Docs(p.DocIndex))
+    If b = 0 Then
+        MsgBox "A fillet rounds the edges of an extrude." & vbCrLf & "Sketch something and extrude it first.", vbExclamation, App.Title
+        Exit Sub
+    End If
+    For j = b + 1 To Docs(p.DocIndex).Count
+        If Docs(p.DocIndex).Features(j).Kind = FK_FILLET And Docs(p.DocIndex).Features(j).Ref = b Then
+            MsgBox FeatureName(Docs(p.DocIndex), b) & " already has a fillet, " & FeatureName(Docs(p.DocIndex), j) & "." & vbCrLf & vbCrLf & _
+                "SolidCraft 2000 rounds an extrude once. Edit " & FeatureName(Docs(p.DocIndex), j) & " to change its radius." & vbCrLf & _
+                "(Fillets on fillets are planned for SolidCraft XP.)", vbInformation, App.Title
+            Exit Sub
+        End If
+    Next j
+    s = Docs(p.DocIndex).Features(Docs(p.DocIndex).Features(b).Ref)
+    ' a sensible first guess: 2 mm, or less on something small
+    m = Abs(Docs(p.DocIndex).Features(b).P1)
+    If s.Kind = FK_SKETCH_RECT Then
+        If s.P1 / 2 < m Then m = s.P1 / 2
+        If s.P2 / 2 < m Then m = s.P2 / 2
+    Else
+        If s.P1 < m Then m = s.P1
+    End If
+    f.Kind = FK_FILLET
+    f.Ref = b
+    f.P1 = 2
+    If f.P1 > m / 2 Then f.P1 = Int(m / 2 * 10) / 10
+    If f.P1 <= 0 Then f.P1 = 0.1
     If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
 End Sub
 
@@ -383,7 +431,7 @@ End Sub
 ' being edited (0 for a new one). Fills f and returns True on OK, if the
 ' numbers make sense.
 Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As Boolean
-    Dim sTitle As String, s As TFeature, b As TFeature, k As Integer
+    Dim sTitle As String, s As TFeature, b As TFeature, k As Integer, inset As TFeature
     If i = 0 Then sTitle = "" Else sTitle = "Edit " & FeatureName(d, i) & ": "
     Select Case f.Kind
     Case FK_SKETCH_RECT
@@ -398,6 +446,10 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         If frmParams.Value(4) < 0 Or frmParams.Value(4) * 2 > Min2(frmParams.Value(0), frmParams.Value(1)) Then
             MsgBox "The corner radius must be between 0 and half the shorter side.", vbExclamation, App.Title
             Exit Function
+        End If
+        If frmParams.Value(4) > 0 And f.P3 = 0 Then
+            frmCal.Pop "It looks like you're trying to round an edge!" & vbCrLf & _
+                "(A corner radius rounds the upright ones. For the top ones, try Features, Fillet.)", "fillet"
         End If
         f.P1 = frmParams.Value(0): f.P2 = frmParams.Value(1)
         f.X = frmParams.Value(2): f.Y = frmParams.Value(3)
@@ -438,9 +490,54 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         End If
         f.P1 = frmParams.Value(0)
 
+    Case FK_FILLET
+        b = d.Features(f.Ref)
+        s = d.Features(b.Ref)
+        If Not frmParams.Ask(sTitle & "Fillet the top edges of " & FeatureName(d, f.Ref), "Radius (mm)", Fmt0(f.P1)) Then Exit Function
+        If frmParams.Value(0) <= 0 Then
+            MsgBox "The radius must be more than zero.", vbExclamation, App.Title
+            Exit Function
+        End If
+        If frmParams.Value(0) > Abs(b.P1) + 0.000001 Then
+            MsgBox "That radius is bigger than " & FeatureName(d, f.Ref) & " is tall (" & Fmt0(Abs(b.P1)) & " mm).", vbExclamation, App.Title
+            Exit Function
+        End If
+        If s.Kind = FK_SKETCH_RECT Then
+            If 2 * frmParams.Value(0) >= Min2(s.P1, s.P2) - 0.000001 Then
+                MsgBox "A fillet that big would round the whole top away." & vbCrLf & _
+                    "Keep the radius under half the shorter side (" & Fmt0(Min2(s.P1, s.P2) / 2) & " mm).", vbExclamation, App.Title
+                Exit Function
+            End If
+        ElseIf frmParams.Value(0) >= s.P1 - 0.000001 Then
+            MsgBox "A fillet that big would round the whole top away." & vbCrLf & _
+                "Keep the radius under the circle's radius (" & Fmt0(s.P1) & " mm).", vbExclamation, App.Title
+            Exit Function
+        End If
+        ' the holes in the top have to stay clear of the rounded edge
+        inset = InsetSketch(s, frmParams.Value(0))
+        For k = 1 To d.Count
+            If k <> i And d.Features(k).Kind = FK_HOLE And d.Features(k).Ref = f.Ref And d.Features(k).Suppressed = 0 Then
+                If Not ProfileContains(inset, d.Features(k).X, d.Features(k).Y, d.Features(k).P1 / 2) Then
+                    MsgBox FeatureName(d, k) & " is too close to the edge for a " & Fmt0(frmParams.Value(0)) & " mm fillet." & vbCrLf & _
+                        "Try a smaller radius, or move the hole in.", vbExclamation, App.Title
+                    Exit Function
+                End If
+            End If
+        Next k
+        f.P1 = frmParams.Value(0)
+
+    Case FK_SM_BASE, FK_SM_EDGE, FK_SM_FLAT
+        If Not SM_Ask(d, i, f) Then Exit Function
+
     Case FK_FOREIGN
-        MsgBox RTrim$(f.Name) & " is a " & LCase$(RTrim$(f.Info)) & " from SolidCraft." & vbCrLf & vbCrLf & _
-            "Requires SolidCraft 2000.", vbInformation, App.Title
+        If InStr(LCase$(f.Info), "fillet") > 0 Then
+            MsgBox RTrim$(f.Name) & " is a fillet from SolidCraft, which rounds the edges it was given, one by one." & vbCrLf & vbCrLf & _
+                "SolidCraft 2000 rounds all the top edges of an extrude or none of them." & vbCrLf & _
+                "Choosing edges requires SolidCraft XP. (Features, Fillet rounds them all.)", vbInformation, App.Title
+        Else
+            MsgBox RTrim$(f.Name) & " is a " & LCase$(RTrim$(f.Info)) & " from SolidCraft." & vbCrLf & vbCrLf & _
+                "Requires SolidCraft XP.", vbInformation, App.Title
+        End If
         Exit Function
 
     Case FK_HOLE
@@ -453,8 +550,10 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
             MsgBox "The diameter must be more than zero, and the depth zero or more.", vbExclamation, App.Title
             Exit Function
         End If
+        s = TopFace(d, f.Ref)          ' less the fillet, if it has one
         If Not ProfileContains(s, frmParams.Value(2), frmParams.Value(3), frmParams.Value(0) / 2) Then
-            MsgBox "That hole doesn't fit on the face. It would fall off the edge.", vbExclamation, App.Title
+            MsgBox "That hole doesn't fit on the face. It would fall off the edge" & _
+                IIf(FilletOf(d, f.Ref) > 0, ", or into the fillet.", "."), vbExclamation, App.Title
             Exit Function
         End If
         If frmParams.Value(1) > b.P1 + 0.000001 Then

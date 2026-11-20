@@ -37,7 +37,7 @@ Private Const OFN_OVERWRITEPROMPT As Long = &H2
 Private Const OFN_PATHMUSTEXIST As Long = &H800
 Private Const OFN_FILEMUSTEXIST As Long = &H1000
 
-Public Const PART_EXT As String = "sc98"
+Public Const PART_EXT As String = "sc2"      ' three letters: 8.3 names are back in fashion
 
 ' sFilter is "Description|*.ext", sExt the default extension. Both default to parts.
 ' Whether a file or folder is there. GetFileAttributes, rather than Dir$,
@@ -72,7 +72,7 @@ End Function
 Public Function FileDialog(ByVal hOwner As Long, ByVal bSave As Boolean, ByVal sDefault As String, _
                            Optional ByVal sFilter As String = "", Optional ByVal sExt As String = "") As String
     Dim ofn As OPENFILENAME, r As Long, p As Long
-    If Len(sFilter) = 0 Then sFilter = "SolidCraft 98 Parts (*." & PART_EXT & ")|*." & PART_EXT
+    If Len(sFilter) = 0 Then sFilter = "SolidCraft 2000 Parts (*." & PART_EXT & ")|*." & PART_EXT
     If Len(sExt) = 0 Then sExt = PART_EXT
     ofn.lStructSize = Len(ofn)
     ofn.hwndOwner = hOwner

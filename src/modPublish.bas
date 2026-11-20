@@ -80,7 +80,7 @@ Private Sub WriteHtml(ByVal slot As Integer, ByVal sPath As String, ByVal sGif A
     fh = FreeFile
     Open sPath For Output As #fh
     Print #fh, "<HTML>"
-    Print #fh, "<HEAD><TITLE>" & sTitle & " - My SolidCraft 98 Part!!!</TITLE></HEAD>"
+    Print #fh, "<HEAD><TITLE>" & sTitle & " - My SolidCraft 2000 Part!!!</TITLE></HEAD>"
     Print #fh, "<BODY BGCOLOR=""#000080"" TEXT=""#FFFF00"" LINK=""#00FFFF"" VLINK=""#FF00FF"">"
     Print #fh, "<CENTER>"
     Print #fh, "<MARQUEE BEHAVIOR=""alternate""><FONT FACE=""Comic Sans MS"" SIZE=""6""><B>Welcome to " & sTitle & "!!!</B></FONT></MARQUEE>"
@@ -103,7 +103,7 @@ Private Sub WriteHtml(ByVal slot As Integer, ByVal sPath As String, ByVal sGif A
     Print #fh, "</TR></TABLE></P>"
     Print #fh, "<P><A HREF=""#"">Sign my guestbook!</A> | <A HREF=""#"">View my guestbook!</A> | <A HREF=""#"">Next site in the CAD Web Ring &gt;&gt;</A></P>"
     Print #fh, "<HR WIDTH=""80%"">"
-    Print #fh, "<FONT SIZE=""2"">Best viewed in IE5 at 800x600. Made with SolidCraft 98 " & HtmlText(AppVersion()) & ".<BR>"
+    Print #fh, "<FONT SIZE=""2"">Best viewed in IE5 at 800x600. Made with SolidCraft 2000 " & HtmlText(AppVersion()) & ".<BR>"
     Print #fh, "Last updated " & Format$(ClockNow(), "mmmm d, yyyy") & ".</FONT>"
     Print #fh, "</CENTER>"
     Print #fh, "</BODY>"

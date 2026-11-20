@@ -168,7 +168,8 @@ Private Sub FillTree()
         ' Sketches hang under the feature that uses them, the way people expect.
         sParent = "root"
         Set n = tvwTree.Nodes.Add(sParent, tvwChild, sKey, FeatureName(Docs(DocIndex), i))
-        If Docs(DocIndex).Features(i).Kind = FK_EXTRUDE Or Docs(DocIndex).Features(i).Kind = FK_REVOLVE Then
+        If Docs(DocIndex).Features(i).Kind = FK_EXTRUDE Or Docs(DocIndex).Features(i).Kind = FK_REVOLVE Or _
+           SM_UsesSketch(Docs(DocIndex).Features(i).Kind) Then
             MoveUnder Docs(DocIndex).Features(i).Ref, i
         End If
         If Not RefOk(Docs(DocIndex), i) Then n.Text = n.Text & " (!)"
@@ -194,7 +195,7 @@ Private Sub FillTimeline()
         li.SubItems(3) = Describe(Docs(DocIndex), i)
         If Docs(DocIndex).Features(i).Kind = FK_FOREIGN Then
             li.SubItems(2) = RTrim$(Docs(DocIndex).Features(i).Info)
-            li.SubItems(4) = "Requires SolidCraft 2000"
+            li.SubItems(4) = "Requires SolidCraft XP"
         ElseIf RefOk(Docs(DocIndex), i) Then
             li.SubItems(4) = "OK"
         Else
@@ -310,6 +311,7 @@ Private Sub Form_KeyDown(KeyCode As Integer, Shift As Integer)
     Case vbKeyE: sCmd = "Extrude"
     Case vbKeyV: sCmd = "Revolve"
     Case vbKeyH: sCmd = "Hole"
+    Case vbKeyL: sCmd = "Fillet"
     Case vbKeyI: sCmd = "ViewIso"
     Case vbKeyF: sCmd = "ZoomFit"
     Case vbKeyS: sCmd = "Shaded"

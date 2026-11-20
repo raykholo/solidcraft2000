@@ -45,7 +45,7 @@ Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
 ' frmCalPin - with Turbo on, "Don't show me this tip again" doesn't hide
 ' Cal's tip: it pins it, a small note in the corner. The x really closes it.
-' Nothing is saved; it's gone when SolidCraft 98 closes.
+' Nothing is saved; it's gone when SolidCraft 2000 closes.
 Option Explicit
 
 Private Declare Function ShowWindow Lib "user32" (ByVal hWnd As Long, ByVal nCmdShow As Long) As Long

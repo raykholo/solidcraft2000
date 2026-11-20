@@ -2,7 +2,7 @@ Attribute VB_Name = "modClassic"
 ' modClassic - keeps the 1998 look on a modern PC.
 '
 ' The list view needs version 6 of the common controls (see
-' SolidCraft98.exe.manifest), and version 6 draws everything in the current
+' SolidCraft2000.exe.manifest), and version 6 draws everything in the current
 ' Windows theme. Turning the theme off per window gives back flat grey
 ' buttons, sunken boxes and square headers.
 ' Also home to TextAt, because Print forgets ForeColor under twinBASIC.

@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin VB.Form frmAbout
    BorderStyle     =   3  'Fixed Dialog
-   Caption         =   "About SolidCraft 98"
+   Caption         =   "About SolidCraft 2000"
    ClientHeight    =   3480
    ClientLeft      =   45
    ClientTop       =   330
@@ -14,7 +14,7 @@ Begin VB.Form frmAbout
    StartUpPosition =   1  'CenterOwner
    Begin VB.PictureBox picLogo
       AutoRedraw      =   -1  'True
-      BackColor       =   &H00800000&
+      BackColor       =   &H00585000&
       Height          =   1440
       Left            =   240
       ScaleHeight     =   92
@@ -42,7 +42,7 @@ Begin VB.Form frmAbout
       Width           =   3615
    End
    Begin VB.Label lblTitle
-      Caption         =   "SolidCraft 98"
+      Caption         =   "SolidCraft 2000"
       BeginProperty Font
          Name            =   "Arial"
          Size            =   14.25
@@ -114,8 +114,8 @@ Private Declare Function GlobalMemoryStatusEx Lib "kernel32" (lpBuffer As MEMORY
 
 Private Sub Form_Load()
     ClassicLook Me
-    Gradient picLogo, RGB(0, 0, 160), RGB(0, 0, 0)
-    DrawLogo picLogo, 46, 24, 11, RGB(255, 255, 0)
+    Gradient picLogo, TEAL_LIGHT, TEAL_DARK
+    DrawLogo2000 picLogo, 42, 28, 10, vbWhite
     lblVersion.Caption = AppVersion() & "  (" & APP_BUILD & ")"
     lblInfo.Caption = APP_EDITION & vbCrLf & vbCrLf & _
         "This product is licensed to:" & vbCrLf & _
