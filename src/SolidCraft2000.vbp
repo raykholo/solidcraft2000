@@ -19,6 +19,7 @@ Module=modRemote; modRemote.bas
 Module=modTutor; modTutor.bas
 Module=modAdaptive; modAdaptive.bas
 Module=modSheetMetal; modSheetMetal.bas
+Module=modStability; modStability.bas
 Module=modCommands; modCommands.bas
 Module=modModel; modModel.bas
 Module=modKernel; modKernel.bas

@@ -3,6 +3,7 @@
     python tools/ci/smoke.py out/SolidCraft2000.exe shots
 
 1. The splash (/SPLASH holds it for 15 seconds).
+3. The scheduled blue screen (/CRASHTEST), and the part still there after.
 2. Through the remote control (/REMOTE, port 9898, this PC only): a filleted
    block with a hole, a sheet-metal part folded and flat, the personalized
    File menu, and the Upgrade Wizard. Every answer goes in shots/remote.log.
@@ -120,6 +121,29 @@ say("look")
 say("key escape")
 say("key enter")
 
+try:
+    say("quit")
+except SystemExit:
+    pass
+p.wait(timeout=30)
+
+# the scheduled crash, brought forward to 10 seconds by /CRASHTEST
+p = subprocess.Popen([str(EXE), "/REMOTE", "/CRASHTEST"])
+time.sleep(4)
+s = socket.create_connection(("127.0.0.1", 9898), timeout=60)
+f = s.makefile("rw", encoding="latin-1", newline="\r\n")
+say("key r"); say("key enter")
+say("key e"); say("key enter")
+say("wait 9000")
+shot("bluescreen")
+if "fatal exception" not in say("look").lower():
+    problems.append("no blue screen after /CRASHTEST")
+say("key space")
+say("wait 800")
+t = say("look")
+if "Extrude1" not in t:
+    problems.append("the part was not there after the blue screen")
+shot("after-bluescreen")
 try:
     say("quit")
 except SystemExit:

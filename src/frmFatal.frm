@@ -32,10 +32,42 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-' frmFatal - what dividing by zero looks like with Turbo on.
+' frmFatal - what dividing by zero looks like with Turbo on, and (new in
+' 2000) what SolidCraft 2000 does every 15 minutes or so (modStability).
 ' It's a borderless blue window. Any key or click closes it; the part
 ' underneath was never touched.
 Option Explicit
+
+Public Scheduled As Boolean      ' the every-15-minutes crash, not a divide by zero
+
+' The text on the screen, a line at a time ("|" between lines).
+Private Function Message() As String
+    If Scheduled Then
+        Message = "A fatal exception 0E has occurred at 0028:C0FFEE00 in VXD FILLET(01) +|" & _
+            "00002000. This was called from 0028:C0012000 in VXD SHEETMTL(03) +|" & _
+            "00000D1V. It has been about fifteen minutes, so this was expected.|" & _
+            "|" & _
+            "Your part has not been terminated. Nothing was lost. It never is.|" & _
+            "|" & _
+            "*  Press any key to return to SolidCraft 2000.|" & _
+            "*  To stop this happening, install the Stability Pack (Help menu)."
+    Else
+        Message = "A fatal exception 0E has occurred at 0028:SOLIDCRAFT+00000D1V0.|" & _
+            "Something somewhere was divided by zero, which even a VB program|" & _
+            "knows better than to do.|" & _
+            "|" & _
+            "The current part will not be terminated. It is fine. It was|" & _
+            "never in any danger.|" & _
+            "|" & _
+            "*  Press any key to return to SolidCraft 2000.|" & _
+            "*  Then type a number that isn't zero."
+    End If
+End Function
+
+' What a screen reader says about it.
+Public Function ReadOut() As String
+    ReadOut = "The whole screen is blue: " & Replace(Replace(Message(), "|*  ", " "), "|", " ")
+End Function
 
 Private Sub Form_Load()
     picScreen.Move 0, 0, Screen.Width, Screen.Height
@@ -50,16 +82,7 @@ Private Sub Form_Activate()
         .FontName = "Lucida Console"
         .FontSize = 14
         lh = .TextHeight("Xy") * 1.4
-        lines = Split( _
-            "A fatal exception 0E has occurred at 0028:SOLIDCRAFT+00000D1V0.|" & _
-            "Something somewhere was divided by zero, which even a VB program|" & _
-            "knows better than to do.|" & _
-            "|" & _
-            "The current part will not be terminated. It is fine. It was|" & _
-            "never in any danger.|" & _
-            "|" & _
-            "*  Press any key to return to SolidCraft 2000.|" & _
-            "*  Then type a number that isn't zero.", "|")
+        lines = Split(Message(), "|")
         x = (.ScaleWidth - .TextWidth(lines(0))) / 2
         If x < 8 Then x = 8
         y = .ScaleHeight / 2 - lh * 7
@@ -83,6 +106,10 @@ End Sub
 
 Private Sub Form_KeyDown(KeyCode As Integer, Shift As Integer)
     Unload Me
+End Sub
+
+Private Sub Form_Unload(Cancel As Integer)
+    Scheduled = False
 End Sub
 
 Private Sub picScreen_MouseDown(Button As Integer, Shift As Integer, X As Single, Y As Single)

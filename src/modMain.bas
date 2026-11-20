@@ -4,6 +4,7 @@ Option Explicit
 
 Sub Main()
     InitClock
+    StabilityStart
     frmSplash.Show
     frmSplash.Paint
     frmSplash.Refresh

@@ -43,6 +43,7 @@ Public Sub RunCommand(ByVal sCmd As String)
     Case "Help": CmdHelp
     Case "About": frmAbout.Show vbModal, frmMain
     Case "Upgrade": frmUpgrade.Show vbModal, frmMain
+    Case "StabilityPack": StabilityPackCommand
     Case Else
         MsgBox "Command '" & sCmd & "' is not implemented yet." & vbCrLf & _
             "It is scheduled for SolidCraft XP.", vbInformation, App.Title

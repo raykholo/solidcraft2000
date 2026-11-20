@@ -271,6 +271,11 @@ Begin VB.MDIForm frmMain
          Tag             =   "Upgrade"
       End
       Begin VB.Menu mnuHelpItem
+         Caption         =   "Install &Stability Pack..."
+         Index           =   4
+         Tag             =   "StabilityPack"
+      End
+      Begin VB.Menu mnuHelpItem
          Caption         =   "-"
          Index           =   1
       End
@@ -330,6 +335,7 @@ Private Sub MDIForm_Load()
     mnuFeatureItem(4).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
     mnuViewItem(6).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
     Personalize
+    StabilityChanged
     BuildToolbar
     BuildStatusBar
     ToolbarDraw picToolbar
@@ -365,6 +371,15 @@ Public Sub TurboChanged()
     ToolbarSetChecked picToolbar, "Turbo", Turbo
     DrawLed picToolbar, ToolbarRight() + 6, LedDigits()
     mnuViewItem(5).Checked = Turbo
+End Sub
+
+' Help, Install Stability Pack says Uninstall once it's in.
+Public Sub StabilityChanged()
+    If StabilityPackInstalled() Then
+        mnuHelpItem(4).Caption = "Uninstall &Stability Pack..."
+    Else
+        mnuHelpItem(4).Caption = "Install &Stability Pack..."
+    End If
 End Sub
 
 ' The Shaded button stays pushed in while the view is shaded.
@@ -403,6 +418,7 @@ End Sub
 
 Private Sub tmrClock_Timer()
     ClockTick
+    StabilityTick
     StatusSet picStatus, "clock", ClockText(ClockNow())
 End Sub
 

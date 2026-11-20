@@ -594,9 +594,7 @@ End Function
 Private Function PictureReadOut(f As Form) As String
     Select Case f.Name
     Case "frmFatal"
-        PictureReadOut = "The whole screen is blue: A fatal exception 0E has occurred at 0028:SOLIDCRAFT+00000D1V0. " & _
-            "Something somewhere was divided by zero. The current part will not be terminated. It is fine. " & _
-            "Press any key to return to SolidCraft 2000. Then type a number that isn't zero."
+        PictureReadOut = frmFatal.ReadOut()
     Case "frmSetup"
         PictureReadOut = frmSetup.ReadOut()
     Case "frmCredits"
