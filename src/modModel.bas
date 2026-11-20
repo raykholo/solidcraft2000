@@ -236,8 +236,6 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
         Describe = "R " & Fmt(f.P1) & " mm, top edges of " & FeatureName(d, f.Ref)
     Case FK_FOREIGN
         Describe = "From SolidCraft. Not in SolidCraft 2000."
-    Case Else
-        If SM_IsSheetMetal(f.Kind) Then Describe = SM_Describe(d, i)
     Case FK_HOLE
         Describe = "D " & Fmt(f.P1) & " mm on " & FeatureName(d, f.Ref) & " top face, "
         If f.P2 <= 0 Then
@@ -245,6 +243,8 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
         Else
             Describe = Describe & Fmt(f.P2) & " mm deep"
         End If
+    Case Else
+        If SM_IsSheetMetal(f.Kind) Then Describe = SM_Describe(d, i)
     End Select
 End Function
 

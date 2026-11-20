@@ -237,6 +237,14 @@ Private Sub ShowPage()
         Suggest
         ShowSummary
     End Select
+    NextHasFocus
+End Sub
+
+' Enter goes to Next (or Finish) on every page, not to whatever button had
+' the focus last. (Before the form is on screen there's no focus to give.)
+Private Sub NextHasFocus()
+    On Error Resume Next
+    If mPage < LAST_PAGE Then lstChoice.SetFocus Else cmdNext.SetFocus
 End Sub
 
 Private Sub ShowSummary()

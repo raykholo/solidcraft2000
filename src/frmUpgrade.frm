@@ -221,6 +221,9 @@ Private Sub ShowPage()
         tmrCheck.Enabled = True
     Case 4
         lblTitle.Caption = "Completing the SolidCraft 2000 Upgrade Wizard"
+        On Error Resume Next
+        cmdNext.SetFocus
+        On Error GoTo 0
         lblBody.Caption = "You have successfully " & IIf(mClean, "clean-installed", "upgraded to") & " SolidCraft 2000." & sCRLF2 & _
             IIf(mClean, "Your SolidCraft 98 parts were left exactly where they were. So was everything else. " & _
                 "A clean install is the same as an upgrade, only cleaner." & sCRLF2, _
