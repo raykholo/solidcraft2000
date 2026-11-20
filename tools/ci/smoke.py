@@ -104,23 +104,28 @@ say("key enter")                       # Finish
 say("key enter")                       # the base flange's numbers
 say("menu Sheet Metal > Edge Flange..."); say("key enter")
 say("menu Sheet Metal > Edge Flange..."); say("key enter")
-say("wait 1500")
+say("wait 3000")
 shot("sheetmetal")
 say("menu Sheet Metal > Flat Pattern")
-say("wait 1000")
+say("wait 4000")                       # shaded first, then "saved as"
 shot("flatpattern")
-say("look")
+if "PART2~1.DXF" not in say("look"):
+    problems.append("the flat pattern wasn't saved as PART2~1.DXF")
 say("key enter")
 
 # the personalized File menu: Save As is hidden until "Show all items"
 t = say("menu File > Save As...", ok=False)
-if "error" not in t.lower():
-    problems.append("menu File > Save As... worked: it should be hidden")
+if "has no" not in t:
+    problems.append("menu File > Save As... didn't say it was hidden: " + t.splitlines()[0])
 say("key escape"); say("key escape")
 say("menu File > Show all items")
 say("wait 800")
 shot("menu-expanded")
 say("key escape"); say("key escape")
+say("menu File > Save As...")          # shown now
+say("wait 800")
+shot("save-as")
+say("key escape")
 
 # the Upgrade Wizard
 say("menu Help > Upgrade from SolidCraft 98...")

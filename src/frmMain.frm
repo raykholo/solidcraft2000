@@ -13,6 +13,12 @@ Begin VB.MDIForm frmMain
       Left            =   120
       Top             =   1200
    End
+   Begin VB.Timer tmrReopen
+      Enabled         =   0   'False
+      Interval        =   60
+      Left            =   1080
+      Top             =   1200
+   End
    Begin VB.Timer tmrClock
       Interval        =   1000
       Left            =   600
@@ -310,9 +316,11 @@ End Type
 
 Private Declare Function GetCursorPos Lib "user32" (lpPoint As POINTAPI) As Long
 Private Declare Function GetWindowRect Lib "user32" (ByVal hWnd As Long, lpRect As RECT) As Long
-Private Declare Function GetMenu Lib "user32" (ByVal hWnd As Long) As Long
-Private Declare Function GetMenuItemRect Lib "user32" (ByVal hWnd As Long, ByVal hMenu As Long, ByVal uItem As Long, lprcItem As RECT) As Long
-Private Declare Function ScreenToClient Lib "user32" (ByVal hWnd As Long, lpPoint As POINTAPI) As Long
+Private Declare Function PostMessage Lib "user32" Alias "PostMessageA" (ByVal hWnd As Long, ByVal wMsg As Long, ByVal wParam As Long, ByVal lParam As Long) As Long
+Private Const WM_SYSCOMMAND As Long = &H112
+Private Const SC_KEYMENU As Long = &HF100&
+
+Private mReopenKey As String     ' the menu "Show all items" opens again
 
 Private mLastMsg As String
 
@@ -515,27 +523,26 @@ Private Sub ShortMenu(items As Object)
     Next i
 End Sub
 
-' "Show all items": everything back, and the same menu straight open again,
-' right under its title, the way it was in 2000.
-Private Sub ShowAllItems(mnu As Menu, ByVal nPos As Long)
-    Dim rc As RECT, pt As POINTAPI
+' "Show all items": everything back, and the same menu open again, the way
+' it was in 2000. The menu that was clicked has to finish closing first, so a
+' timer opens it a moment later, as Alt and its letter would.
+Private Sub ShowAllItems(ByVal sKey As String)
     AdaptiveExpand
     Personalize
-    ' a maximized part puts its own icon at the left of the menu bar
-    If Not ActiveForm Is Nothing Then
-        If ActiveForm.WindowState = vbMaximized Then nPos = nPos + 1
-    End If
-    GetMenuItemRect hWnd, GetMenu(hWnd), nPos, rc
-    pt.X = rc.Left: pt.Y = rc.Bottom
-    ScreenToClient hWnd, pt
-    PopupMenu mnu, , pt.X * Screen.TwipsPerPixelX, pt.Y * Screen.TwipsPerPixelY
+    mReopenKey = sKey
+    tmrReopen.Enabled = True
+End Sub
+
+Private Sub tmrReopen_Timer()
+    tmrReopen.Enabled = False
+    PostMessage hWnd, WM_SYSCOMMAND, SC_KEYMENU, Asc(LCase$(mReopenKey))
 End Sub
 
 ' Runs a menu item: "Show all items" opens the menu again, anything else
-' joins the short menu.
-Private Sub MenuPicked(ByVal sTag As String, mnu As Menu, ByVal nPos As Long)
+' joins the short menu. sKey is the menu's underlined letter.
+Private Sub MenuPicked(ByVal sTag As String, ByVal sKey As String)
     If sTag = MORE_TAG Then
-        ShowAllItems mnu, nPos
+        ShowAllItems sKey
         Exit Sub
     End If
     AdaptiveUsed sTag
@@ -556,7 +563,7 @@ Private Sub mnuView_Click()
 End Sub
 
 Private Sub mnuFileItem_Click(Index As Integer)
-    MenuPicked mnuFileItem(Index).Tag, mnuFile, 0
+    MenuPicked mnuFileItem(Index).Tag, "f"
 End Sub
 
 Private Sub mnuEditItem_Click(Index As Integer)
@@ -568,11 +575,11 @@ Private Sub mnuSketchItem_Click(Index As Integer)
 End Sub
 
 Private Sub mnuFeatureItem_Click(Index As Integer)
-    MenuPicked mnuFeatureItem(Index).Tag, mnuFeature, 3
+    MenuPicked mnuFeatureItem(Index).Tag, "t"
 End Sub
 
 Private Sub mnuViewItem_Click(Index As Integer)
-    MenuPicked mnuViewItem(Index).Tag, mnuView, 5
+    MenuPicked mnuViewItem(Index).Tag, "v"
 End Sub
 
 Private Sub mnuSheetItem_Click(Index As Integer)
