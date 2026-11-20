@@ -127,6 +127,19 @@ say("wait 800")
 shot("save-as")
 say("key escape")
 
+# the samples, through File > Open: they must build without a rebuild error
+SAMPLES = Path(__file__).resolve().parents[2] / "samples"
+for name, shotname in (("Filleted Plate.sc2", "sample-plate"), ("Sheet Metal Tray.sc2", "sample-tray")):
+    say("key ctrl+o")
+    say("wait 800")
+    say("type " + str(SAMPLES / name))
+    say("key enter")
+    say("wait 4000")                   # the view is still shaded from before
+    shot(shotname)
+    t = say("look")
+    if "Rebuild error" in t or name.split(".")[0] not in t:
+        problems.append(f"{name} didn't open cleanly")
+
 # the Upgrade Wizard
 say("menu Help > Upgrade from SolidCraft 98...")
 say("wait 800")
