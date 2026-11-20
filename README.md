@@ -52,7 +52,7 @@ Like SolidCraft 98, it still fits on one 1.44 MB floppy disk, packed with UPX.
 edge of an extrude: the one picked in the tree or the timeline, or the last
 one. Type the radius. That's it.
 
-![A block with filleted top edges and a hole, shaded](docs/screenshots/fillet.png)
+![The Filleted Plate sample: a plate and a boss, each with its top edges filleted](docs/screenshots/fillet.png)
 
 - It's parametric, like everything else: double-click the fillet in the
   timeline to change its radius, or the extrude under it to change that.
@@ -77,14 +77,16 @@ asks for a material and a thickness (with an Advanced... dialog over the
 wizard, for the bend radius and K-factor, and an "Are you sure?" over that).
 Then add edge flanges, one to an edge, each with its own angle and bend relief.
 
-![A base flange with two edge flanges](docs/screenshots/sheetmetal.png)
+![The Sheet Metal Tray sample: a base flange and four edge flanges, each with a different relief](docs/screenshots/sheetmetal.png)
+
+![The Bend Table Wizard](docs/screenshots/bendtable.png)
 
 **Flat Pattern** unfolds the part, shows the bend lines in green, and writes a
 DXF of the flat blank with its relief cuts, named the 8.3 way
 (`PART2~1.DXF`) for the nesting software in the shop. Choose it again to fold
 the part back up.
 
-![The flat pattern](docs/screenshots/flatpattern.png)
+![A part with two edge flanges, unfolded](docs/screenshots/flatpattern.png)
 
 What's there now is a small reference engine. It's a slot: everything sheet
 metal is in one module, behind a documented interface, waiting for a real
@@ -128,7 +130,7 @@ seconds, to see it without waiting.
 ### And
 
 - Parts are `.sc2` files. File > Open still takes `.sc98` parts and SolidCraft
-  designs.
+  designs. Two new samples: `Filleted Plate.sc2` and `Sheet Metal Tray.sc2`.
 - The splash, the About box and the wizards are grey-teal, with a Y2K
   sticker. The logo's block has filleted edges.
 - The demo-scene credits (type WIN98 in the About box) have new lines.
