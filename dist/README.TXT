@@ -1,22 +1,28 @@
 SolidCraft 2000 - Professional Edition
-====================================
+======================================
 
-Parametric CAD, the way it would have been written in 1999.
+Parametric CAD, the way it would have been written in 2000.
+Now with fillets.
 
 1. Run SolidCraft2000.exe. Nothing to install.
-2. File, Open: Samples\Mounting Plate.sc98, to see a finished part,
-   or one of the .solidcraft designs, made in SolidCraft itself.
+2. File, Open: Samples\Mounting Plate.sc98, a SolidCraft 98 part, to
+   see it upgraded, or one of the .solidcraft designs, made in
+   SolidCraft itself.
 3. Or make your own: R sketches a rectangle, C a circle, E extrudes,
-   V revolves, H drills a hole. Double-click a feature to change it,
-   Del deletes it. Drag in the view to orbit.
-4. S shades the view (slowly). File, Export for Rapid Prototyping
-   writes an .stl file for a 3D printer.
+   V revolves, H drills a hole, L rounds the top edges (new!).
+   Double-click a feature to change it, Del deletes it. Drag in the
+   view to orbit.
+4. Sheet Metal, Base Flange starts a sheet metal part from a
+   rectangle sketch. Flat Pattern unfolds it and saves a DXF.
+5. S shades the view (slowly). File, Export for Rapid Prototyping
+   writes an .stl file for a 3D printer. (Can't see it? File, Show
+   all items. The menus hide what you haven't used yet.)
 
-The full guide, "Design your first part", is in the README on the
-project page.
+It blue-screens every 15 minutes or so. Press any key: nothing is
+lost. Help, Install Stability Pack stops it.
 
 If Windows says it protected your PC: More info, then Run anyway.
-(The EXE isn't signed. In 1999 nothing was.)
+(The EXE isn't signed. In 2000 nothing was.)
 
 MIT License. See LICENSE and NOTICE.
 SolidCraft 2000 is a parody, not affiliated with or a replacement for SolidCraft.

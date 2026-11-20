@@ -49,19 +49,28 @@ for _ in range(60):
         time.sleep(1)
 if s is None:
     sys.exit("SolidCraft 2000 never answered on port 9898")
-f = s.makefile("rw", encoding="latin-1", newline="\r\n")
+buf = b""
 
 
 def say(cmd, ok=True):
     """Sends one command and returns its answer (the lines before ".")."""
-    f.write(cmd + "\r\n")
-    f.flush()
+    global buf
+    s.sendall(cmd.encode("latin-1") + b"\r\n")
     lines = []
     while True:
-        line = f.readline()
-        if not line:
-            raise SystemExit("the connection closed")
-        line = line.rstrip("\r\n")
+        while b"\n" not in buf:
+            try:
+                chunk = s.recv(4096)
+            except socket.timeout:
+                shot("timeout")
+                log.write(f"> {cmd}\n(no answer in 60 s; got so far: {buf!r})\n")
+                log.close()
+                raise SystemExit(f"no answer to {cmd!r}")
+            if not chunk:
+                raise SystemExit("the connection closed")
+            buf += chunk
+        raw, buf = buf.split(b"\n", 1)
+        line = raw.decode("latin-1").rstrip("\r")
         if line == ".":
             break
         lines.append(line)
@@ -131,7 +140,7 @@ p.wait(timeout=30)
 p = subprocess.Popen([str(EXE), "/REMOTE", "/CRASHTEST"])
 time.sleep(4)
 s = socket.create_connection(("127.0.0.1", 9898), timeout=60)
-f = s.makefile("rw", encoding="latin-1", newline="\r\n")
+buf = b""
 say("key r"); say("key enter")
 say("key e"); say("key enter")
 say("wait 9000")

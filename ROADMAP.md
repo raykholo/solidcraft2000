@@ -4,29 +4,21 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 
 ## Done
 
-- **1.1:** Export for Rapid Prototyping (`.stl`), so parts can be 3D-printed;
-  and a shaded view, slow on purpose (slower still with Turbo on).
-- **Editions:** the [Delphi Edition](delphi/) in Object Pascal, for Windows,
-  Linux and the Raspberry Pi; and a [FreeBASIC version](freebasic/) for Linux
-  and the original Raspberry Pi.
+- **2000:** fillets on the top edges of an extrude; sheet metal (base and
+  edge flanges, bend relief, flat pattern to DXF) as a slot for a real
+  engine; Personalized Menus; the Upgrade Wizard; a blue screen every 15
+  minutes or so, and the Stability Pack.
 
-## Planned
+## Wanted
 
-Nothing new is planned. What comes next, if anything, is from the list below.
+- **A real sheet-metal engine**, behind the clunkiest interface imaginable.
+  See [CONTRIBUTING-SHEETMETAL.md](CONTRIBUTING-SHEETMETAL.md).
 
-## Maybe, not promised
+## SolidCraft XP, maybe
 
-- Hole patterns: a row of holes, or a bolt circle around a centre. (SolidCraft
-  designs with patterns would then open instead of waiting for SolidCraft 2000.)
-- File > Print: an isometric view and the feature table, through VB's
-  `Printer` object.
-
-## Later, maybe
-
-- DXF export of the top view, for machine shops.
-- More sketch shapes: slots, hexagons.
-- Sketches on side faces, not just facing up.
+- Fillets on chosen edges, and on the bottom edges.
+- Chamfers.
+- Fillets from SolidCraft designs, when they round whole top edges.
+- Hole patterns: a row of holes, or a bolt circle.
+- Sketches on side faces.
 - A real undo and redo history.
-- Fillets and chamfers on top edges.
-- A Motif Edition: the same program in C with Motif, for X11 on Linux and the Raspberry Pi,
-  looking like the Unix workstation down the hall.

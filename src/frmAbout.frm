@@ -2,7 +2,7 @@ VERSION 5.00
 Begin VB.Form frmAbout
    BorderStyle     =   3  'Fixed Dialog
    Caption         =   "About SolidCraft 2000"
-   ClientHeight    =   3480
+   ClientHeight    =   3840
    ClientLeft      =   45
    ClientTop       =   330
    ClientWidth     =   5760
@@ -31,11 +31,11 @@ Begin VB.Form frmAbout
       Height          =   375
       Left            =   4440
       TabIndex        =   0
-      Top             =   2940
+      Top             =   3300
       Width           =   1095
    End
    Begin VB.Label lblInfo
-      Height          =   1560
+      Height          =   1920
       Left            =   1920
       TabIndex        =   3
       Top             =   1080
@@ -69,15 +69,15 @@ Begin VB.Form frmAbout
       BorderColor     =   &H00808080&
       X1              =   240
       X2              =   5520
-      Y1              =   2700
-      Y2              =   2700
+      Y1              =   3060
+      Y2              =   3060
    End
    Begin VB.Label lblWarn
       Caption         =   "Warning: this computer program is protected by a sense of humour."
       Height          =   495
       Left            =   240
       TabIndex        =   5
-      Top             =   2880
+      Top             =   3240
       Width           =   3975
    End
 End
@@ -120,7 +120,8 @@ Private Sub Form_Load()
     lblInfo.Caption = APP_EDITION & vbCrLf & vbCrLf & _
         "This product is licensed to:" & vbCrLf & _
         "    Machine Shop, Back Office PC" & vbCrLf & vbCrLf & _
-        "Physical memory available to Windows:" & vbCrLf & "    " & MemoryKB() & " KB"
+        "Physical memory available to Windows:" & vbCrLf & "    " & MemoryKB() & " KB" & vbCrLf & vbCrLf & _
+        "System stability:  Uptime: excellent"
 End Sub
 
 ' The real figure, formatted like it's still impressive.
