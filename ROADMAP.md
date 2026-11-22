@@ -11,7 +11,7 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 - **Service Pack 1:** chamfers, at 45 degrees; hole patterns, a row or a
   bolt circle; fillets and chamfers on chosen sides of the top, and on the
   bottom; a real undo and redo history, twenty levels deep; fillets and
-  chamfers from SolidCraft designs.
+  chamfers from SolidCraft designs; sketches on the side faces of a box.
 
 ## Wanted
 
@@ -20,4 +20,4 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 
 ## SolidCraft XP, maybe
 
-- Sketches on side faces.
+- Nothing yet. Ask on the [Dutchman CAD Discord](https://discord.gg/yTcseBEdeu).

@@ -25,9 +25,149 @@ Public Const COL_SOLID As Long = &H0&            ' black
 Public Const COL_HOLE As Long = &H80&            ' dark red
 Public Const COL_AXIS As Long = &H808080
 
+' ---- Frames (Service Pack 1: sketches on side faces) ----
+'
+' Every sketch has a frame: where its X, Y and Z go in the world. A sketch on
+' the ground or on a top face has the world's (and its Z, from SketchZ). A
+' sketch on a side face of an extrude has that face's: X runs along the face
+' (to the right, looking at it from outside), Y up it from the extrude's
+' bottom, Z out of it. A body is built in its sketch's frame, and its edges
+' and triangles are turned into the world as they're added.
+
+Public Type TFrame
+    OX As Double
+    OY As Double
+    OZ As Double
+    UX As Double
+    UY As Double
+    UZ As Double
+    VX As Double
+    VY As Double
+    VZ As Double
+    WX As Double
+    WY As Double
+    WZ As Double
+End Type
+
+Public Const FACE_TOP As Integer = 0          ' a sketch's Reserved(1): which face of its extrude
+Public Const FACE_FRONT As Integer = 1        ' -Y
+Public Const FACE_RIGHT As Integer = 2        ' +X
+Public Const FACE_BACK As Integer = 3         ' +Y
+Public Const FACE_LEFT As Integer = 4         ' -X
+
+Private mXf As TFrame
+Private mXfOn As Boolean
+
+Public Function WorldFrame() As TFrame
+    Dim w As TFrame
+    w.UX = 1: w.VY = 1: w.WZ = 1
+    WorldFrame = w
+End Function
+
+' (x, y, z) in frame fr, in the world.
+Public Sub ToWorld(fr As TFrame, ByVal x As Double, ByVal y As Double, ByVal z As Double, wx As Double, wy As Double, wz As Double)
+    wx = fr.OX + fr.UX * x + fr.VX * y + fr.WX * z
+    wy = fr.OY + fr.UY * x + fr.VY * y + fr.WY * z
+    wz = fr.OZ + fr.UZ * x + fr.VZ * y + fr.WZ * z
+End Sub
+
+' From now on AddEdge takes points in frame fr (until ClearEdgeFrame).
+Public Sub SetEdgeFrame(fr As TFrame)
+    mXf = fr
+    mXfOn = Not IsLevel(fr)
+End Sub
+
+Public Sub ClearEdgeFrame()
+    mXfOn = False
+End Sub
+
+' The world's frame, or one only moved up or down from it?
+Public Function IsLevel(fr As TFrame) As Boolean
+    Const E As Double = 0.000000001
+    IsLevel = Abs(fr.UX - 1) < E And Abs(fr.VY - 1) < E And Abs(fr.WZ - 1) < E And _
+              Abs(fr.OX) < E And Abs(fr.OY) < E And Abs(fr.OZ) < E
+End Function
+
+Public Function SameFrame(a As TFrame, b As TFrame) As Boolean
+    Const E As Double = 0.000001
+    SameFrame = Abs(a.OX - b.OX) < E And Abs(a.OY - b.OY) < E And Abs(a.OZ - b.OZ) < E And _
+        Abs(a.UX - b.UX) < E And Abs(a.UY - b.UY) < E And Abs(a.UZ - b.UZ) < E And _
+        Abs(a.VX - b.VX) < E And Abs(a.VY - b.VY) < E And Abs(a.VZ - b.VZ) < E And _
+        Abs(a.WX - b.WX) < E And Abs(a.WY - b.WY) < E And Abs(a.WZ - b.WZ) < E
+End Function
+
+' Which face of its extrude sketch f is on (FACE_TOP for the ground too).
+Public Function SketchFace(f As TFeature) As Integer
+    If f.Ref <= 0 Then Exit Function
+    SketchFace = CInt(f.Reserved(1))
+End Function
+
+Public Function FaceName(ByVal face As Integer) As String
+    Select Case face
+    Case FACE_FRONT: FaceName = "front"
+    Case FACE_RIGHT: FaceName = "right"
+    Case FACE_BACK: FaceName = "back"
+    Case FACE_LEFT: FaceName = "left"
+    Case Else: FaceName = "top"
+    End Select
+End Function
+
+' The frame of sketch i.
+Public Function FrameOf(d As TDesign, ByVal i As Integer) As TFrame
+    Dim f As TFeature, r As Integer, p As TFrame, s As TFeature, q As TFrame, z0 As Double
+    f = d.Features(i)
+    r = f.Ref
+    If r < 1 Or r >= i Then FrameOf = WorldFrame: Exit Function
+    If d.Features(r).Kind <> FK_EXTRUDE Then FrameOf = WorldFrame: Exit Function
+    p = FrameOf(d, d.Features(r).Ref)            ' the extrude's own frame
+    If SketchFace(f) = FACE_TOP Then FrameOf = p: Exit Function
+    s = d.Features(d.Features(r).Ref)
+    z0 = SketchZ(d, d.Features(r).Ref)           ' the extrude's bottom
+    q = p
+    Select Case SketchFace(f)
+    Case FACE_FRONT
+        ToWorld p, 0, s.Y, z0, q.OX, q.OY, q.OZ
+        SetAxes q, p.UX, p.UY, p.UZ, p.WX, p.WY, p.WZ, -p.VX, -p.VY, -p.VZ
+    Case FACE_RIGHT
+        ToWorld p, s.X + s.P1, 0, z0, q.OX, q.OY, q.OZ
+        SetAxes q, p.VX, p.VY, p.VZ, p.WX, p.WY, p.WZ, p.UX, p.UY, p.UZ
+    Case FACE_BACK
+        ToWorld p, 0, s.Y + s.P2, z0, q.OX, q.OY, q.OZ
+        SetAxes q, -p.UX, -p.UY, -p.UZ, p.WX, p.WY, p.WZ, p.VX, p.VY, p.VZ
+    Case FACE_LEFT
+        ToWorld p, s.X, 0, z0, q.OX, q.OY, q.OZ
+        SetAxes q, -p.VX, -p.VY, -p.VZ, p.WX, p.WY, p.WZ, -p.UX, -p.UY, -p.UZ
+    End Select
+    FrameOf = q
+End Function
+
+' The frame extrude, revolve or hole i is built in.
+Public Function BodyFrame(d As TDesign, ByVal i As Integer) As TFrame
+    Select Case d.Features(i).Kind
+    Case FK_EXTRUDE, FK_REVOLVE
+        BodyFrame = FrameOf(d, d.Features(i).Ref)
+    Case FK_HOLE, FK_FILLET, FK_CHAMFER
+        BodyFrame = FrameOf(d, d.Features(d.Features(i).Ref).Ref)
+    Case Else
+        BodyFrame = WorldFrame
+    End Select
+End Function
+
+Private Sub SetAxes(q As TFrame, ByVal ux As Double, ByVal uy As Double, ByVal uz As Double, _
+                    ByVal vx As Double, ByVal vy As Double, ByVal vz As Double, _
+                    ByVal wx As Double, ByVal wy As Double, ByVal wz As Double)
+    q.UX = ux: q.UY = uy: q.UZ = uz
+    q.VX = vx: q.VY = vy: q.VZ = vz
+    q.WX = wx: q.WY = wy: q.WZ = wz
+End Sub
+
 ' Adds one segment to the list, growing it as needed. (Public for modSheetMetal.)
 Public Sub AddEdge(e() As TEdge, n As Long, ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
                     ByVal x2 As Double, ByVal y2 As Double, ByVal z2 As Double, ByVal c As Long)
+    If mXfOn Then
+        ToWorld mXf, x1, y1, z1, x1, y1, z1
+        ToWorld mXf, x2, y2, z2, x2, y2, z2
+    End If
     If n > UBound(e) Then ReDim Preserve e(0 To UBound(e) * 2 + 1)
     e(n).X1 = x1: e(n).Y1 = y1: e(n).Z1 = z1
     e(n).X2 = x2: e(n).Y2 = y2: e(n).Z2 = z2
@@ -128,6 +268,7 @@ Public Function SketchZ(d As TDesign, ByVal i As Integer) As Double
     Dim r As Integer, z0 As Double, z1 As Double
     SketchZ = d.Features(i).Z
     r = d.Features(i).Ref
+    If SketchFace(d.Features(i)) <> FACE_TOP Then Exit Function   ' on a side: Z is how far out
     If r >= 1 And r < i Then
         If d.Features(r).Kind = FK_EXTRUDE Then
             ExtrudeRange d, r, z0, z1
@@ -187,10 +328,11 @@ End Function
 ' which hole of a pattern.
 Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Double, Optional ByVal k As Integer = 0)
     Dim h As TFeature, j As Integer, b0 As Double, b1 As Double, moved As Boolean, tf As TFeature
-    Dim hx As Double, hy As Double
+    Dim hx As Double, hy As Double, hf As TFrame
     Const EPS As Double = 0.000001
     h = d.Features(i)
     HoleAt h, k, hx, hy
+    hf = BodyFrame(d, h.Ref)
     ExtrudeRange d, h.Ref, zBot, zTop
     If h.P2 > 0 Then
         zBot = zTop - h.P2
@@ -200,7 +342,7 @@ Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Do
         moved = False
         For j = 1 To i - 1
             If d.Features(j).Kind = FK_EXTRUDE And d.Features(j).Suppressed = 0 And j <> h.Ref Then
-                If RefOk(d, j) Then
+                If RefOk(d, j) And SameFrame(BodyFrame(d, j), hf) Then     ' only bodies facing the same way
                     ExtrudeRange d, j, b0, b1
                     If b0 < zBot - EPS And b1 >= zBot - EPS And b1 <= zTop + EPS Then
                         tf = TopFace(d, j)
@@ -473,6 +615,11 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     For i = 1 To d.Count
         f = d.Features(i)
         If f.Suppressed = 0 And RefOk(d, i) Then
+            Select Case f.Kind                  ' each in its own frame
+            Case FK_SKETCH_RECT, FK_SKETCH_CIRCLE: SetEdgeFrame FrameOf(d, i)
+            Case FK_EXTRUDE, FK_REVOLVE, FK_HOLE: SetEdgeFrame BodyFrame(d, i)
+            Case Else: ClearEdgeFrame
+            End Select
             Select Case f.Kind
             Case FK_SKETCH_RECT
                 sz = SketchZ(d, i)
@@ -565,6 +712,7 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
             End Select
         End If
     Next i
+    ClearEdgeFrame
     Regenerate = n
 End Function
 
@@ -577,7 +725,14 @@ Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
         If f.Ref = 0 Then
             RefOk = True
         ElseIf f.Ref >= 1 And f.Ref < i Then
-            If d.Features(f.Ref).Kind = FK_EXTRUDE Then RefOk = RefOk(d, f.Ref)
+            If d.Features(f.Ref).Kind = FK_EXTRUDE Then
+                If SketchFace(f) = FACE_TOP Then
+                    RefOk = RefOk(d, f.Ref)
+                ElseIf SketchFace(f) >= FACE_FRONT And SketchFace(f) <= FACE_LEFT Then
+                    ' a side face: the extrude has to have flat sides
+                    If d.Features(d.Features(f.Ref).Ref).Kind = FK_SKETCH_RECT Then RefOk = RefOk(d, f.Ref)
+                End If
+            End If
         End If
     Case FK_EXTRUDE, FK_REVOLVE
         If f.Ref >= 1 And f.Ref < i Then RefOk = IsSketch(d.Features(f.Ref).Kind)
