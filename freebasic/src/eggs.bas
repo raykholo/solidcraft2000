@@ -446,9 +446,11 @@ Sub DrawSplash()
     Text x + 18, y + 236, "Version 1.2.0  Build 2000.0214", &hFF404040
     Text x + 18, y + 252, "Copyright (C) 1998-2000 SolidCraft Software. Made with Line and Circle.", &hFF404040
     DrawY2KBadge x + 392, y + 196, 32
-    Text x + 300, y + 266, "* tested until 19 January 2038", &hFF606060
+    Text x + 272, y + 266, "* tested until 19 January 2038", &hFF606060
     Frame x, y, w, h, &hFF404040
 End Sub
+
+Dim Shared SplashShot As String          ' --splash-shot <file>: keep the last splash as a picture
 
 Sub SplashProgress(ByRef msg As String)
     SplashMsg = msg
@@ -456,6 +458,7 @@ Sub SplashProgress(ByRef msg As String)
     SurfFromScreen S
     Fill 0, 0, ScrW, ScrH, &hFF008080        ' the desktop, teal
     DrawSplash
+    If Len(SplashShot) Then BSave SplashShot, 0
     ScreenUnlock
     If Not HeadlessMode Then Sleep 350, 1
 End Sub

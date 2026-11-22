@@ -1,6 +1,6 @@
 #!/bin/bash
 # Real X11 run: the app in Xvfb, driven by xdotool, screenshots with xwd.
-# Usage: podman run --rm -v "$PWD/..":/r:Z -w /r/freebasic sc98-fb-x86 bash tests/x11.sh
+# Usage: podman run --rm -v "$PWD/..":/r:Z -w /r/freebasic sc2000-fb-x86 bash tests/x11.sh
 export HOME=$PWD/tests/home DISPLAY=:7
 mkdir -p $HOME/Documents tests/out
 Xvfb :7 -screen 0 1024x768x24 >/dev/null 2>&1 &

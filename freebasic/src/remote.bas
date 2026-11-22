@@ -2,7 +2,7 @@
 ' pipe, the way Unix programs have always been scripted (see Expect), and
 ' reads the screen back as text, the way a screen reader does.
 '
-'   sc98 --remote [--headless]
+'   sc2000 --remote [--headless]
 '
 ' One command per line on standard input; each answer on standard output
 ' ends with a line holding a single ".". Commands:

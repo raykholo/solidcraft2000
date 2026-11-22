@@ -590,6 +590,7 @@ Sub ShowFatal()
     Dim d As TDlg
     If FatalOpen Then Exit Sub
     FatalOpen = True
+    LogLine "blue screen" & IIf(FatalScheduled, " (scheduled)", " (divide by zero)")
     d.noFrame = True
     d.x = 0: d.y = 0: d.w = ScrW: d.h = ScrH
     d.drawFn = @FatalDraw
@@ -730,8 +731,8 @@ Sub AboutDraw(ByVal dp As Any Ptr)
     DrawLogo ox + 58, oy + 54, 11, &hFFFFFFFF
     DrawY2KBadge ox + 92, oy + 94, 12
     TextAt ox + 124, oy + 12, APP_NAME, C_TEXT, True, 2
-    HLine ox + 12, oy + 168, d->w - 30, C_SHADOW
-    HLine ox + 12, oy + 169, d->w - 30, C_HILITE
+    HLine ox + 12, oy + 180, d->w - 30, C_SHADOW
+    HLine ox + 12, oy + 181, d->w - 30, C_HILITE
 End Sub
 
 Function AboutReadOut(ByVal dp As Any Ptr) As String
@@ -763,14 +764,15 @@ Sub ShowAbout()
     Dim d As TDlg
     Dim i As Long
     d.title = "About " & APP_NAME
-    d.w = 390: d.h = 244
+    d.w = 390: d.h = 260
     CenterDialog d
     AddCtl d, CT_LABEL, 124, 42, 250, 13, APP_VERSION & "  (" & APP_BUILD & ")"
     AddCtl d, CT_LABEL, 124, 64, 250, 70, APP_EDITION & Chr(10) & Chr(10) & "This product is licensed to:" & Chr(10) & _
         "    Machine Shop, Back Office PC" & Chr(10) & Chr(10)
-    AddCtl d, CT_LABEL, 124, 128, 250, 40, "Physical memory available to Linux:" & Chr(10) & MemoryKB() & " KB" & Chr(10) & Chr(10) & "System stability:  Uptime: excellent"
-    AddCtl d, CT_LABEL, 12, 176, 270, 26, "Warning: this computer program is protected by a sense" & Chr(10) & "of humour."
-    i = AddCtl(d, CT_BUTTON, 290, 180, 75, 23, "OK", IDOK): d.c(i).isDefault = True: d.c(i).isCancel = True
+    AddCtl d, CT_LABEL, 124, 132, 250, 26, "Physical memory available to Linux:" & Chr(10) & "    " & MemoryKB() & " KB"
+    AddCtl d, CT_LABEL, 124, 160, 250, 13, "System stability:  Uptime: excellent"
+    AddCtl d, CT_LABEL, 12, 192, 270, 26, "Warning: this computer program is protected by a sense" & Chr(10) & "of humour."
+    i = AddCtl(d, CT_BUTTON, 290, 194, 75, 23, "OK", IDOK): d.c(i).isDefault = True: d.c(i).isCancel = True
     d.focus = i
     d.drawFn = @AboutDraw
     d.readOutFn = @AboutReadOut
@@ -1015,7 +1017,7 @@ Function AskFeature(ByRef d As TDesign, ByVal i As Long, ByRef f As TFeature) As
         If ParamValue(4) < 0 Or ParamValue(4) * 2 > Min2(ParamValue(0), ParamValue(1)) Then MsgBox "The corner radius must be between 0 and half the shorter side.", MB_EXCLAMATION: Return False
         If ParamValue(4) > 0 And f.P3 = 0 Then
             CalPop "It looks like you're trying to round an edge!" & Chr(10) & _
-                "(A corner radius rounds the upright ones. For the top ones, try Features, Fillet.)"
+                "(For the top ones, try Features, Fillet.)"
         End If
         f.P1 = ParamValue(0): f.P2 = ParamValue(1): f.X = ParamValue(2): f.Y = ParamValue(3)
         f.P3 = ParamValue(4): f.Ref = ParamValue(5): f.Z = ParamValue(6)
@@ -1720,6 +1722,9 @@ Sub Main()
             Open Command(i) For Output As #LogFile
         Case "--bench"
             BenchMode = True
+        Case "--splash-shot"
+            i += 1
+            SplashShot = Command(i)
         Case "--y2ktest", "/Y2KTEST", "/y2ktest"
             ' read by InitClock
         Case "--stable", "/STABLE", "/stable"

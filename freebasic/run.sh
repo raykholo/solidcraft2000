@@ -4,5 +4,5 @@
 cd "$(dirname "$0")"
 mkdir -p tests/home/Documents tests/out
 cp ../samples/* tests/home/Documents/
-podman run --rm -v "$PWD":/w:Z -w /w -e HOME=/w/tests/home sc98-fb-x86 bash -c \
+podman run --rm -v "$PWD":/w:Z -w /w -e HOME=/w/tests/home sc2000-fb-x86 bash -c \
   "timeout 120 ./build/sc2000 --headless --log tests/out/log.txt --script $1 ${@:2}; rc=\$?; for f in tests/out/*.bmp; do [ -f \"\$f\" ] && convert \"\$f\" \"\${f%.bmp}.png\" && rm \"\$f\"; done; exit \$rc"

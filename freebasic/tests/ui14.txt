@@ -110,3 +110,10 @@ wait 100
 key enter
 wait 100
 shot tests/out/w24_done.bmp
+# Help, About
+key alt+h
+key a
+wait 200
+shot tests/out/w25_about.bmp
+key enter
+wait 100
