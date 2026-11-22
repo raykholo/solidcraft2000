@@ -142,13 +142,55 @@ Public Sub ExtrudeRange(d As TDesign, ByVal i As Integer, z0 As Double, z1 As Do
     z1 = z0 + d.Features(i).P1
 End Sub
 
+' ---- Hole patterns (Service Pack 1) ----
+'
+' One hole feature can be a row of holes or a bolt circle. P3 is how many
+' (0 or 1: just the one). Reserved(1) is the bolt circle's diameter, 0 for a
+' row; Reserved(2) is the spacing in a row; Reserved(3) is an angle in
+' degrees: the row's direction, or where the first hole on the circle sits.
+' A row starts at the hole's centre; a bolt circle goes round it.
+
+Public Const MAX_PATTERN As Integer = 36
+
+Public Function HoleCount(f As TFeature) As Integer
+    If f.P3 >= 2 Then HoleCount = Int(f.P3) Else HoleCount = 1
+End Function
+
+' The centre of hole k (0 to HoleCount - 1) of hole feature f.
+Public Sub HoleAt(f As TFeature, ByVal k As Integer, x As Double, y As Double)
+    Dim a As Double, n As Integer
+    n = HoleCount(f)
+    a = f.Reserved(3) * PI / 180
+    If n > 1 And f.Reserved(1) > 0 Then
+        a = a + 2 * PI * k / n
+        x = f.X + f.Reserved(1) / 2 * Cos(a)
+        y = f.Y + f.Reserved(1) / 2 * Sin(a)
+    Else
+        x = f.X + k * f.Reserved(2) * Cos(a)
+        y = f.Y + k * f.Reserved(2) * Sin(a)
+    End If
+End Sub
+
+' Are all the holes of f inside the face s?
+Public Function HolesInside(s As TFeature, f As TFeature) As Boolean
+    Dim k As Integer, x As Double, y As Double
+    For k = 0 To HoleCount(f) - 1
+        HoleAt f, k, x, y
+        If Not ProfileContains(s, x, y, f.P1 / 2) Then Exit Function
+    Next k
+    HolesInside = True
+End Function
+
 ' Where hole i starts and stops. It starts on the top face of the body it was
 ' put on. A blind hole goes down its depth; "through all" keeps going through
-' every extruded body stacked underneath that the hole fits inside.
-Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Double)
+' every extruded body stacked underneath that the hole fits inside. k is
+' which hole of a pattern.
+Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Double, Optional ByVal k As Integer = 0)
     Dim h As TFeature, j As Integer, b0 As Double, b1 As Double, moved As Boolean, tf As TFeature
+    Dim hx As Double, hy As Double
     Const EPS As Double = 0.000001
     h = d.Features(i)
+    HoleAt h, k, hx, hy
     ExtrudeRange d, h.Ref, zBot, zTop
     If h.P2 > 0 Then
         zBot = zTop - h.P2
@@ -162,7 +204,7 @@ Public Sub HoleSpan(d As TDesign, ByVal i As Integer, zTop As Double, zBot As Do
                     ExtrudeRange d, j, b0, b1
                     If b0 < zBot - EPS And b1 >= zBot - EPS And b1 <= zTop + EPS Then
                         tf = TopFace(d, j)
-                        If ProfileContains(tf, h.X, h.Y, h.P1 / 2) Then
+                        If ProfileContains(tf, hx, hy, h.P1 / 2) Then
                             zBot = b0
                             moved = True
                         End If
@@ -285,6 +327,7 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     Dim used() As Boolean, fr As Double, zf As Double, m As Integer
     Dim qx() As Double, qy() As Double, qseam() As Boolean, ox() As Double, oy() As Double
     Dim bCh As Boolean, nst As Integer, in0 As Double, up0 As Double, in1 As Double, up1 As Double
+    Dim hx As Double, hy As Double
 
     ReDim e(0 To 255)
     If d.Count > 0 Then ReDim used(1 To d.Count) Else ReDim used(0 To 0)
@@ -382,14 +425,17 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
                 AddEdge e, n, 0, -10, sz, 0, 10 + MaxAbs(py, np), sz, COL_AXIS
 
             Case FK_HOLE
-                HoleSpan d, i, zt, z0
                 r = f.P1 / 2
-                AddCircle e, n, f.X, f.Y, zt, r, COL_HOLE
-                AddCircle e, n, f.X, f.Y, z0, r, COL_HOLE
-                For j = 0 To 3
-                    a0 = j * PI / 2
-                    AddEdge e, n, f.X + r * Cos(a0), f.Y + r * Sin(a0), zt, f.X + r * Cos(a0), f.Y + r * Sin(a0), z0, COL_HOLE
-                Next j
+                For m = 0 To HoleCount(f) - 1
+                    HoleSpan d, i, zt, z0, m
+                    HoleAt f, m, hx, hy
+                    AddCircle e, n, hx, hy, zt, r, COL_HOLE
+                    AddCircle e, n, hx, hy, z0, r, COL_HOLE
+                    For j = 0 To 3
+                        a0 = j * PI / 2
+                        AddEdge e, n, hx + r * Cos(a0), hy + r * Sin(a0), zt, hx + r * Cos(a0), hy + r * Sin(a0), z0, COL_HOLE
+                    Next j
+                Next m
             Case Else
                 If SM_IsSheetMetal(f.Kind) Then SM_Edges d, i, e, n
             End Select
@@ -426,7 +472,7 @@ Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
             If d.Features(f.Ref).Kind = FK_EXTRUDE Then
                 If RefOk(d, f.Ref) Then
                     tf = TopFace(d, f.Ref)
-                    RefOk = ProfileContains(tf, f.X, f.Y, f.P1 / 2)
+                    RefOk = HolesInside(tf, f)
                 End If
             End If
         End If

@@ -68,9 +68,28 @@ or the last one. Type the distance.
 - An extrude gets a fillet or a chamfer, not both. Chamfer something that's
   filleted and SolidCraft 2000 says so.
 - 45 degrees only. Other angles, SolidCraft XP.
-- A part with a chamfer is saved as version 7. SolidCraft 2000 1.0 won't open
-  it, and asks for Service Pack 1, which it was always going to do. Parts
-  without one still open in 1.0.
+
+### Hole patterns
+
+The Hole dialog (H) has four more boxes. **Count** is how many holes. With
+**Bolt circle dia.** 0 they go in a row from the centre, **Row spacing**
+apart, in the direction of **Angle** (0 is along X, 90 along Y). With a bolt
+circle diameter they go round the centre, evenly, the first one at Angle.
+
+![A chamfered block with six holes on a bolt circle](docs/screenshots/holepattern.png)
+
+- A pattern is one feature: double-click it to change the count, the
+  spacing or the circle, and every hole moves.
+- Every hole has to fit on the face and keep clear of the others, the
+  fillet or chamfer, and the holes already there. SolidCraft 2000 says which
+  rule it broke.
+- Up to 36 holes in one pattern. Thirty-six ought to be enough for anybody.
+
+### Service Pack 1 parts
+
+A part with a chamfer or a hole pattern is saved as version 7. SolidCraft
+2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
+to do. Parts without them still open in 1.0.
 
 ## New in 2000
 
@@ -175,6 +194,7 @@ corner, and a boss with a bore. About five minutes.
    and so are its corners.
 4. **Corner holes.** Press H. Diameter 5, Depth 0 (all the way through),
    Centre X -32, Centre Y -17. OK. Again at (32, -17), (32, 17) and (-32, 17).
+   (With Service Pack 1, two rows of two do it: Count 2, Row spacing 64.)
 5. **The boss.** Press C: Radius 10, Centre 0, 0, on feature # 2 (the plate).
    OK. Press E: Depth 15. OK. Press L: Radius 3. OK.
 6. **The bore.** Press H. Diameter 10, Depth 0, Centre 0, 0. It goes through
@@ -187,8 +207,8 @@ corner, and a boss with a bore. About five minutes.
 ## What it can't do yet
 
 - Sketches are rectangles and circles, flat, facing up. Holes go straight down
-  from a top face. Fillets and chamfers go on all the top edges of an
-  extrude, or none.
+  from a top face, one at a time, in a row or round a circle. Fillets and
+  chamfers go on all the top edges of an extrude, or none.
 - No booleans to speak of: a body standing wholly on another's top face is
   joined to it in an STL; anything else stays separate (slicers merge them).
 - Sheet metal is the reference engine: see its limits in

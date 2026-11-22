@@ -68,12 +68,20 @@ Begin VB.Form frmParams
       Top             =   3120
       Width           =   1560
    End
+   Begin VB.TextBox txtP
+      Height          =   315
+      Index           =   7
+      Left            =   2880
+      TabIndex        =   7
+      Top             =   3600
+      Width           =   1560
+   End
    Begin VB.CommandButton cmdOK
       Caption         =   "OK"
       Default         =   -1  'True
       Height          =   375
       Left            =   1080
-      TabIndex        =   7
+      TabIndex        =   8
       Top             =   2220
       Width           =   1095
    End
@@ -82,7 +90,7 @@ Begin VB.Form frmParams
       Caption         =   "Cancel"
       Height          =   375
       Left            =   2280
-      TabIndex        =   8
+      TabIndex        =   9
       Top             =   2220
       Width           =   1095
    End
@@ -90,7 +98,7 @@ Begin VB.Form frmParams
       Caption         =   "&Help"
       Height          =   375
       Left            =   3480
-      TabIndex        =   9
+      TabIndex        =   10
       Top             =   2220
       Width           =   1095
    End
@@ -99,7 +107,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   0
       Left            =   240
-      TabIndex        =   10
+      TabIndex        =   11
       Top             =   285
       Width           =   2600
    End
@@ -108,7 +116,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   1
       Left            =   240
-      TabIndex        =   11
+      TabIndex        =   12
       Top             =   765
       Width           =   2600
    End
@@ -117,7 +125,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   2
       Left            =   240
-      TabIndex        =   12
+      TabIndex        =   13
       Top             =   1245
       Width           =   2600
    End
@@ -126,7 +134,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   3
       Left            =   240
-      TabIndex        =   13
+      TabIndex        =   14
       Top             =   1725
       Width           =   2600
    End
@@ -135,7 +143,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   4
       Left            =   240
-      TabIndex        =   14
+      TabIndex        =   15
       Top             =   2205
       Width           =   2600
    End
@@ -144,7 +152,7 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   5
       Left            =   240
-      TabIndex        =   15
+      TabIndex        =   16
       Top             =   2685
       Width           =   2600
    End
@@ -153,8 +161,17 @@ Begin VB.Form frmParams
       Height          =   255
       Index           =   6
       Left            =   240
-      TabIndex        =   16
+      TabIndex        =   17
       Top             =   3165
+      Width           =   2600
+   End
+   Begin VB.Label lblP
+      Caption         =   "Value"
+      Height          =   255
+      Index           =   7
+      Left            =   240
+      TabIndex        =   18
+      Top             =   3645
       Width           =   2600
    End
 End
@@ -172,7 +189,7 @@ Attribute VB_Exposed = False
 Option Explicit
 
 Private mCount As Integer
-Private Const MAX_FIELDS As Integer = 7
+Private Const MAX_FIELDS As Integer = 8
 Private mValues(0 To MAX_FIELDS - 1) As Double
 Private mOK As Boolean
 Private mMismatches As Integer     ' Turbo: how many type mismatches in a row

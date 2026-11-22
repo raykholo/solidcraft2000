@@ -332,6 +332,8 @@ Private Sub CmdHole()
     f.Kind = FK_HOLE
     f.Ref = b
     f.P1 = 8
+    f.P3 = 1                       ' one hole; more makes a pattern
+    f.Reserved(2) = 20             ' the spacing, if it becomes a row
     SketchCentre s, f.X, f.Y
     If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
 End Sub
@@ -439,6 +441,7 @@ End Sub
 Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As Boolean
     Dim sTitle As String, s As TFeature, b As TFeature, k As Integer, inset As TFeature
     Dim sWord As String, sWhole As String
+    Dim g As TFeature, m As Integer, q As Integer, x1 As Double, y1 As Double, x2 As Double, y2 As Double
     If i = 0 Then sTitle = "" Else sTitle = "Edit " & FeatureName(d, i) & ": "
     Select Case f.Kind
     Case FK_SKETCH_RECT
@@ -530,7 +533,7 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         inset = InsetSketch(s, frmParams.Value(0))
         For k = 1 To d.Count
             If k <> i And d.Features(k).Kind = FK_HOLE And d.Features(k).Ref = f.Ref And d.Features(k).Suppressed = 0 Then
-                If Not ProfileContains(inset, d.Features(k).X, d.Features(k).Y, d.Features(k).P1 / 2) Then
+                If Not HolesInside(inset, d.Features(k)) Then
                     MsgBox FeatureName(d, k) & " is too close to the edge for a " & Fmt0(frmParams.Value(0)) & " mm " & LCase$(KindName(f.Kind)) & "." & vbCrLf & _
                         "Try a smaller " & sWord & ", or move the hole in.", vbExclamation, App.Title
                     Exit Function
@@ -556,35 +559,72 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
     Case FK_HOLE
         b = d.Features(f.Ref)
         s = d.Features(b.Ref)
+        ' Service Pack 1: Count, and the pattern's shape, in the same dialog
         If Not frmParams.Ask(sTitle & "Hole on top face of " & FeatureName(d, f.Ref), _
-            "Diameter (mm)|Depth (mm, 0 = through all)|Centre X (mm)|Centre Y (mm)", _
-            Fmt0(f.P1) & "|" & Fmt0(f.P2) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y)) Then Exit Function
+            "Diameter (mm)|Depth (mm, 0 = through all)|Centre X (mm)|Centre Y (mm)|" & _
+            "Count (1 = one hole)|Bolt circle dia. (0 = a row)|Row spacing (mm)|Angle (degrees)", _
+            Fmt0(f.P1) & "|" & Fmt0(f.P2) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y) & "|" & _
+            HoleCount(f) & "|" & Fmt0(f.Reserved(1)) & "|" & Fmt0(f.Reserved(2)) & "|" & Fmt0(f.Reserved(3))) Then Exit Function
         If frmParams.Value(0) <= 0 Or frmParams.Value(1) < 0 Then
             MsgBox "The diameter must be more than zero, and the depth zero or more.", vbExclamation, App.Title
             Exit Function
         End If
+        If frmParams.Value(4) <> Int(frmParams.Value(4)) Or frmParams.Value(4) < 1 Or frmParams.Value(4) > MAX_PATTERN Then
+            MsgBox "Count must be a whole number from 1 to " & MAX_PATTERN & "." & vbCrLf & _
+                "(" & MAX_PATTERN & " holes ought to be enough for anybody.)", vbExclamation, App.Title
+            Exit Function
+        End If
+        If frmParams.Value(5) < 0 Then
+            MsgBox "The bolt circle diameter must be zero (for a row) or more.", vbExclamation, App.Title
+            Exit Function
+        End If
+        g = f
+        g.P1 = frmParams.Value(0): g.P2 = frmParams.Value(1)
+        g.X = frmParams.Value(2): g.Y = frmParams.Value(3)
+        g.P3 = frmParams.Value(4)
+        g.Reserved(1) = frmParams.Value(5): g.Reserved(2) = frmParams.Value(6): g.Reserved(3) = frmParams.Value(7)
+        If HoleCount(g) > 1 Then
+            ' the holes of the pattern mustn't run into each other
+            For m = 0 To HoleCount(g) - 2
+                HoleAt g, m, x1, y1
+                For q = m + 1 To HoleCount(g) - 1
+                    HoleAt g, q, x2, y2
+                    If Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2) < g.P1 + 0.01 Then
+                        MsgBox "The holes in the pattern would run into each other." & vbCrLf & _
+                            IIf(g.Reserved(1) > 0, "Make the bolt circle bigger, or the holes fewer or smaller.", _
+                            "Make the row spacing more than the diameter."), vbExclamation, App.Title
+                        Exit Function
+                    End If
+                Next q
+            Next m
+        End If
         s = TopFace(d, f.Ref)          ' less the fillet, if it has one
-        If Not ProfileContains(s, frmParams.Value(2), frmParams.Value(3), frmParams.Value(0) / 2) Then
-            MsgBox "That hole doesn't fit on the face. It would fall off the edge" & _
+        If Not HolesInside(s, g) Then
+            MsgBox IIf(HoleCount(g) > 1, "Not all the holes fit on the face. One would fall off the edge", _
+                "That hole doesn't fit on the face. It would fall off the edge") & _
                 IIf(FilletOf(d, f.Ref) > 0, ", or into the " & LCase$(KindName(d.Features(FilletOf(d, f.Ref)).Kind)) & ".", "."), vbExclamation, App.Title
             Exit Function
         End If
-        If frmParams.Value(1) > b.P1 + 0.000001 Then
+        If g.P2 > b.P1 + 0.000001 Then
             MsgBox "That's deeper than " & FeatureName(d, f.Ref) & " is tall." & vbCrLf & _
                 "Use depth 0 for a hole all the way through.", vbExclamation, App.Title
             Exit Function
         End If
         For k = 1 To d.Count
             If k <> i And d.Features(k).Kind = FK_HOLE And d.Features(k).Ref = f.Ref Then
-                If Sqr((d.Features(k).X - frmParams.Value(2)) ^ 2 + (d.Features(k).Y - frmParams.Value(3)) ^ 2) < _
-                   (d.Features(k).P1 + frmParams.Value(0)) / 2 + 0.01 Then
-                    MsgBox "That hole would run into " & FeatureName(d, k) & ".", vbExclamation, App.Title
-                    Exit Function
-                End If
+                For m = 0 To HoleCount(g) - 1
+                    HoleAt g, m, x1, y1
+                    For q = 0 To HoleCount(d.Features(k)) - 1
+                        HoleAt d.Features(k), q, x2, y2
+                        If Sqr((x1 - x2) ^ 2 + (y1 - y2) ^ 2) < (d.Features(k).P1 + g.P1) / 2 + 0.01 Then
+                            MsgBox IIf(HoleCount(g) > 1, "A hole of the pattern", "That hole") & " would run into " & FeatureName(d, k) & ".", vbExclamation, App.Title
+                            Exit Function
+                        End If
+                    Next q
+                Next m
             End If
         Next k
-        f.P1 = frmParams.Value(0): f.P2 = frmParams.Value(1)
-        f.X = frmParams.Value(2): f.Y = frmParams.Value(3)
+        f = g
     End Select
     AskFeature = True
 End Function

@@ -166,21 +166,25 @@ End Function
 ' above its top, inside its outline, and get down to its top or further.
 Private Function CollectHoles(d As TDesign, ByVal i As Integer, ByVal z1 As Double, h() As THole) As Integer
     Dim j As Integer, n As Integer, zt As Double, zb As Double, r As Double, s As TFeature
+    Dim q As Integer, hx As Double, hy As Double
     ReDim h(0 To 7)
     s = TopFace(d, i)
     For j = i + 1 To d.Count
         If d.Features(j).Kind = FK_HOLE And d.Features(j).Suppressed = 0 Then
             If RefOk(d, j) Then
                 r = d.Features(j).P1 / 2
-                If ProfileContains(s, d.Features(j).X, d.Features(j).Y, r) Then
-                    HoleSpan d, j, zt, zb
-                    If zt >= z1 - EPS And zb <= z1 + EPS Then
-                        If n > UBound(h) Then ReDim Preserve h(0 To n * 2)
-                        h(n).X = d.Features(j).X: h(n).Y = d.Features(j).Y: h(n).R = r
-                        h(n).ZTop = zt: h(n).ZBot = zb: h(n).Feat = j
-                        n = n + 1
+                For q = 0 To HoleCount(d.Features(j)) - 1      ' every hole of a pattern
+                    HoleAt d.Features(j), q, hx, hy
+                    If ProfileContains(s, hx, hy, r) Then
+                        HoleSpan d, j, zt, zb, q
+                        If zt >= z1 - EPS And zb <= z1 + EPS Then
+                            If n > UBound(h) Then ReDim Preserve h(0 To n * 2)
+                            h(n).X = hx: h(n).Y = hy: h(n).R = r
+                            h(n).ZTop = zt: h(n).ZBot = zb: h(n).Feat = j
+                            n = n + 1
+                        End If
                     End If
-                End If
+                Next q
             End If
         End If
     Next j
