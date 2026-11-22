@@ -102,8 +102,10 @@ jobs:
           $lu = (Get-ChildItem C:\lazarus\components\lazutils\lib -Directory | Select-Object -First 1).FullName
           $fpc = (Get-ChildItem C:\lazarus\fpc -Recurse -Filter fpc.exe | Select-Object -First 1).FullName
           New-Item -ItemType Directory -Force build | Out-Null
-          & $fpc -O1 -Fusrc "-Fu$lu" -FUbuild -obuild\coretest.exe tests\coretest.pas | Select-Object -Last 5
-          $out = & .\build\coretest.exe
+          & $fpc -O1 -Fusrc "-Fu$lu" -FUbuild -FEbuild tests\coretest.pas 2>&1 | Select-Object -Last 8
+          $exe = Get-ChildItem build -Filter 'coretest*.exe' | Select-Object -First 1
+          if (-not $exe) { Get-ChildItem build | Format-Table Name, Length | Out-String | Write-Host; throw "coretest.exe wasn't built" }
+          $out = & $exe.FullName
           $out | Out-File core.txt
           $out
           if (-not ($out -match "core: all ok")) { throw "core tests failed" }
