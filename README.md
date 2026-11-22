@@ -111,12 +111,6 @@ only ever took off the last feature.)
 
 ### Service Pack 1 parts
 
-A part with a chamfer or a hole pattern is saved as version 7. SolidCraft
-2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
-to do. Parts without them still open in 1.0.
-
-### Service Pack 1 parts
-
 A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as
 version 7. SolidCraft 2000 1.0 won't open it, and asks for Service Pack 1,
 which it was always going to do. Parts without them still open in 1.0.
