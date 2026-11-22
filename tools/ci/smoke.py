@@ -5,7 +5,7 @@
 1. The splash (/SPLASH holds it for 15 seconds).
 3. The scheduled blue screen (/CRASHTEST), and the part still there after.
 2. Through the remote control (/REMOTE, port 9898, this PC only): a filleted
-   block with a hole, a chamfered one, a sheet-metal part folded and flat, the personalized
+   block with a hole, a chamfered one with a bolt circle of holes, a sheet-metal part folded and flat, the personalized
    File menu, and the Upgrade Wizard. Every answer goes in shots/remote.log.
 
 Fails if the program won't start, or an action answers "error:" where it
@@ -105,6 +105,15 @@ shot("chamfer")
 t = say("look")
 if "Chamfer1" not in t or "Rebuild error" in t:
     problems.append("the chamfered block didn't build: " + t.splitlines()[0])
+# six 3 mm holes on a 20 mm bolt circle round the middle one
+say("key h")
+say("type 3"); say("key tab"); say("key tab"); say("key tab"); say("key tab")
+say("type 6"); say("key tab"); say("type 20"); say("key enter")
+say("wait 1500")
+shot("holepattern")
+t = say("look")
+if "6 x D 3" not in t or "Rebuild error" in t:
+    problems.append("the bolt circle didn't build: " + t.splitlines()[0])
 
 # sheet metal, in a new part
 say("key ctrl+n")

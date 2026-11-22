@@ -6,8 +6,8 @@ Attribute VB_Name = "modModel"
 Option Explicit
 
 Public Const FILE_MAGIC As String = "SC2K"
-Public Const FILE_VERSION As Integer = 7     ' 7: chamfers (Service Pack 1). Parts without one are still saved as 6
-Private Const FILE_VERSION_NO_CHAMFER As Integer = 6
+Public Const FILE_VERSION As Integer = 7     ' 7: Service Pack 1 (chamfers, hole patterns). Parts without them are still saved as 6
+Private Const FILE_VERSION_1_0 As Integer = 6
 Public Const FILE_MAGIC_98 As String = "SC98"   ' SolidCraft 98 parts: read, upgraded, never written
 Public Const MAX_FEATURES As Integer = 64    ' someone once had 41 features
 
@@ -33,9 +33,10 @@ Public Type TFeature
     P2 As Double           ' height | - | - | - | hole depth (0 = through all) | -
     Ref As Integer         ' the feature this one is built on
     Suppressed As Integer
-    P3 As Double           ' rectangle corner radius
+    P3 As Double           ' rectangle corner radius | hole: how many in the pattern (0 or 1 = one)
     Info As String * 32    ' FK_FOREIGN: what the feature was in SolidCraft ("fillet")
-    Reserved(1 To 3) As Double   ' so the next version won't break every file (it will anyway)
+    Reserved(1 To 3) As Double   ' so the next version won't break every file (it will anyway).
+                                 ' Hole patterns: bolt circle diameter (0 = a row), row spacing, angle
 End Type
 
 ' Version 3 files, from before corner radii. Read and converted on Open.
@@ -249,11 +250,20 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
     Case FK_FOREIGN
         Describe = "From SolidCraft. Not in SolidCraft 2000."
     Case FK_HOLE
-        Describe = "D " & Fmt(f.P1) & " mm on " & FeatureName(d, f.Ref) & " top face, "
+        If f.P3 >= 2 Then Describe = Int(f.P3) & " x "
+        Describe = Describe & "D " & Fmt(f.P1) & " mm on " & FeatureName(d, f.Ref) & " top face, "
         If f.P2 <= 0 Then
             Describe = Describe & "through all"
         Else
             Describe = Describe & Fmt(f.P2) & " mm deep"
+        End If
+        If f.P3 >= 2 Then
+            If f.Reserved(1) > 0 Then
+                Describe = Describe & ", on a " & Fmt(f.Reserved(1)) & " mm bolt circle"
+            Else
+                Describe = Describe & ", in a row " & Fmt(f.Reserved(2)) & " mm apart"
+                If f.Reserved(3) <> 0 Then Describe = Describe & " at " & Fmt(f.Reserved(3)) & Chr$(176)
+            End If
         End If
     Case Else
         If SM_IsSheetMetal(f.Kind) Then Describe = SM_Describe(d, i)
@@ -308,14 +318,15 @@ Failed:
     End If
 End Function
 
-' The oldest version that can hold this part, so a part without a chamfer
-' still opens in SolidCraft 2000 1.0. One with a chamfer tells 1.0 to get
-' Service Pack 1, which is the truth.
+' The oldest version that can hold this part, so a part without anything
+' from Service Pack 1 still opens in SolidCraft 2000 1.0. One with a chamfer
+' or a hole pattern tells 1.0 to get Service Pack 1, which is the truth.
 Private Function SaveVersion(d As TDesign) As Integer
     Dim i As Integer
-    SaveVersion = FILE_VERSION_NO_CHAMFER
+    SaveVersion = FILE_VERSION_1_0
     For i = 1 To d.Count
         If d.Features(i).Kind = FK_CHAMFER Then SaveVersion = FILE_VERSION
+        If d.Features(i).Kind = FK_HOLE And d.Features(i).P3 >= 2 Then SaveVersion = FILE_VERSION
     Next i
 End Function
 
