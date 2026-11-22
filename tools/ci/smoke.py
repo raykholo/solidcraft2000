@@ -170,7 +170,8 @@ say("key escape")
 
 # the samples, through File > Open: they must build without a rebuild error
 SAMPLES = Path(__file__).resolve().parents[2] / "samples"
-for name, shotname in (("Filleted Plate.sc2", "sample-plate"), ("Sheet Metal Tray.sc2", "sample-tray")):
+for name, shotname in (("Filleted Plate.sc2", "sample-plate"), ("Sheet Metal Tray.sc2", "sample-tray"),
+                       ("Rounded Block.solidcraft", "sample-rounded")):
     say("key ctrl+o")
     say("wait 800")
     say("type " + str(SAMPLES / name))
@@ -178,8 +179,10 @@ for name, shotname in (("Filleted Plate.sc2", "sample-plate"), ("Sheet Metal Tra
     say("wait 4000")                   # the view is still shaded from before
     shot(shotname)
     t = say("look")
-    if "Rebuild error" in t or name.split(".")[0] not in t:
+    if "Rebuild error" in t or "Requires SolidCraft XP" in t or name.split(".")[0] not in t:
         problems.append(f"{name} didn't open cleanly")
+    if name.endswith(".solidcraft") and "| Fillet1 | Fillet |" not in t:
+        problems.append(f"{name}: its fillet didn't come over as a SolidCraft 2000 fillet")
 
 # the Upgrade Wizard
 say("menu Help > Upgrade from SolidCraft 98...")

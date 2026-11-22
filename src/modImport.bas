@@ -4,8 +4,9 @@ Attribute VB_Name = "modImport"
 ' A .solidcraft file is a ZIP holding document.json, the design's feature
 ' history (a plain-JSON design works too). We read that history and rebuild
 ' what SolidCraft 2000 can build: flat sketches of rectangles (rounded or not)
-' and circles, extrudes, revolves about the sketch's Y axis, and straight-down
-' holes. Everything else stays in the timeline as "Requires SolidCraft 2000",
+' and circles, extrudes, revolves about the sketch's Y axis, straight-down
+' holes, and (Service Pack 1) fillets and chamfers that take all the top edges
+' of one extrude. Everything else stays in the timeline as "Requires SolidCraft 2000",
 ' and the part opens with what's left.
 '
 ' A feature is brought over whole or not at all: if any part of it can't be
@@ -110,6 +111,8 @@ Public Function ImportSolidCraft(ByVal sPath As String, d As TDesign) As Boolean
         Case "extrude": ImportExtrude d, f
         Case "revolve": ImportRevolve d, f
         Case "hole": ImportHole d, f
+        Case "fillet": ImportEdgeFinish d, f, False
+        Case "chamfer": ImportEdgeFinish d, f, True
         Case Else: Foreign d, f, PrettyType(sType), ""
         End Select
     Next k
@@ -692,3 +695,106 @@ Private Sub ImportHole(d As TDesign, ByVal f As Long)
     h.P2 = depth
     AddRaw d, h, JStr(JGet(f, "name"))
 End Sub
+
+' ---- fillets and chamfers (Service Pack 1) ----
+'
+' SolidCraft names each edge by a point on it. SolidCraft 2000 rounds (or
+' bevels) every top edge of an extrude or none, so the feature comes over
+' when its points are all on one extrude's top outline and every side of that
+' outline has one. Anything else waits for SolidCraft XP.
+
+Private Sub ImportEdgeFinish(d As TDesign, ByVal f As Long, ByVal bChamfer As Boolean)
+    Dim edges As Long, n As Long, k As Long, b As Integer, r As Double, ok As Boolean, sWhat As String
+    Dim px() As Double, py() As Double, pz() As Double, e As TFeature, j As Integer
+    sWhat = IIf(bChamfer, "Chamfer", "Fillet")
+    If bChamfer Then
+        If JGet(f, "distance2") > 0 Or JGet(f, "angle") > 0 Then Foreign d, f, sWhat, "not the same distance both ways": Exit Sub
+        r = NodeValue(JGet(f, "distance"), ok)
+    Else
+        If JGet(f, "style") > 0 Then
+            If JStr(JGet(JGet(f, "style"), "type")) <> "constant" Then Foreign d, f, sWhat, "not a constant radius": Exit Sub
+        End If
+        r = NodeValue(JGet(f, "radius"), ok)
+    End If
+    If Not ok Or r <= 0 Then Foreign d, f, sWhat, "a size SolidCraft 2000 can't work out": Exit Sub
+    edges = JGet(f, "edges")
+    If JKind(edges) <> JS_ARR Then Foreign d, f, sWhat, "edges SolidCraft 2000 can't find": Exit Sub
+    n = JCount(edges)
+    If n = 0 Then Foreign d, f, sWhat, "no edges": Exit Sub
+    ReDim px(0 To n - 1): ReDim py(0 To n - 1): ReDim pz(0 To n - 1)
+    For k = 0 To n - 1
+        If JKind(JItem(edges, k)) <> JS_ARR Then Foreign d, f, sWhat, "edges SolidCraft 2000 can't find": Exit Sub
+        px(k) = JNum(JItem(JItem(edges, k), 0))
+        py(k) = JNum(JItem(JItem(edges, k), 1))
+        pz(k) = JNum(JItem(JItem(edges, k), 2))
+    Next k
+    For b = d.Count To 1 Step -1
+        If d.Features(b).Kind = FK_EXTRUDE Then
+            If RefOk(d, b) And TakesTopEdges(d, b, px, py, pz, n) Then Exit For
+        End If
+    Next b
+    If b < 1 Then Foreign d, f, sWhat, "on edges other than all the top edges of one extrude": Exit Sub
+    For j = b + 1 To d.Count
+        If IsEdgeFinish(d.Features(j).Kind) And d.Features(j).Ref = b Then
+            Foreign d, f, sWhat, "on an extrude that already has a fillet or chamfer": Exit Sub
+        End If
+    Next j
+    e.Kind = IIf(bChamfer, FK_CHAMFER, FK_FILLET)
+    e.Ref = b
+    e.P1 = r
+    j = AddRaw(d, e, JStr(JGet(f, "name")))
+    If j = 0 Then Exit Sub
+    If Not RefOk(d, j) Then
+        ' too big for the extrude, or a hole is in its way: say so, and leave it out
+        d.Features(j).Kind = FK_FOREIGN
+        d.Features(j).Info = sWhat
+        d.Features(j).P1 = 0: d.Features(j).Ref = 0
+        mNForeign = mNForeign + 1
+        If mNForeign <= 12 Then mForeign = mForeign & "    " & FeatureName(d, j) & " (" & LCase$(sWhat) & ": too big for " & FeatureName(d, b) & ")" & vbCrLf
+    End If
+End Sub
+
+' Are all the points on the top outline of extrude b, one or more on every side of it?
+Private Function TakesTopEdges(d As TDesign, ByVal b As Integer, px() As Double, py() As Double, pz() As Double, ByVal n As Long) As Boolean
+    Dim s As TFeature, z0 As Double, z1 As Double, k As Long, side As Integer, got(0 To 3) As Boolean
+    s = d.Features(d.Features(b).Ref)
+    ExtrudeRange d, b, z0, z1
+    For k = 0 To n - 1
+        If Abs(pz(k) - z1) > EPS Then Exit Function
+        side = OutlineSide(s, px(k), py(k))
+        If side < -1 Then Exit Function          ' not on the outline at all
+        If side >= 0 Then got(side) = True        ' -1: on a rounded corner, which comes with its sides
+    Next k
+    If s.Kind = FK_SKETCH_CIRCLE Then
+        TakesTopEdges = True
+    Else
+        ' a side as long as the corners leave nothing of is no side
+        TakesTopEdges = (got(0) Or s.P1 - 2 * s.P3 < EPS) And (got(2) Or s.P1 - 2 * s.P3 < EPS) And _
+                        (got(1) Or s.P2 - 2 * s.P3 < EPS) And (got(3) Or s.P2 - 2 * s.P3 < EPS)
+    End If
+End Function
+
+' Which side of sketch s the point (x, y) is on: 0 front, 1 right, 2 back,
+' 3 left (a circle is all side 0), -1 a rounded corner, -2 not on the outline.
+Private Function OutlineSide(s As TFeature, ByVal x As Double, ByVal y As Double) As Integer
+    Dim r As Double, cx As Double, cy As Double
+    OutlineSide = -2
+    If s.Kind = FK_SKETCH_CIRCLE Then
+        If Abs(Sqr((x - s.X) ^ 2 + (y - s.Y) ^ 2) - s.P1) < EPS Then OutlineSide = 0
+        Exit Function
+    End If
+    r = s.P3
+    If x > s.X + r - EPS And x < s.X + s.P1 - r + EPS Then
+        If Abs(y - s.Y) < EPS Then OutlineSide = 0: Exit Function
+        If Abs(y - (s.Y + s.P2)) < EPS Then OutlineSide = 2: Exit Function
+    End If
+    If y > s.Y + r - EPS And y < s.Y + s.P2 - r + EPS Then
+        If Abs(x - (s.X + s.P1)) < EPS Then OutlineSide = 1: Exit Function
+        If Abs(x - s.X) < EPS Then OutlineSide = 3: Exit Function
+    End If
+    If r > 0 Then
+        If x < s.X + r Then cx = s.X + r Else cx = s.X + s.P1 - r
+        If y < s.Y + r Then cy = s.Y + r Else cy = s.Y + s.P2 - r
+        If Abs(Sqr((x - cx) ^ 2 + (y - cy) ^ 2) - r) < EPS Then OutlineSide = -1
+    End If
+End Function
