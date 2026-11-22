@@ -220,14 +220,14 @@ Function CalClick(ByVal mx As Long, ByVal my As Long) As Boolean
                 If Turbo Then
                     CalPinned = True
                 Else
-                    MsgBox "OK. Cal won't show this tip again." & Chr(10) & "(Until you restart SolidCraft 98.)", MB_INFO, "Cal"
+                    MsgBox "OK. Cal won't show this tip again." & Chr(10) & "(Until you restart SolidCraft 2000.)", MB_INFO, "Cal"
                 End If
             End Select
             NeedRedraw = True
             Return True
         End If
     Next
-    If mx < x + 60 Then CalText = "Did you know? Every SolidCraft 98 file" & Chr(10) & "is also a perfectly good door stop," & Chr(10) & "if you print it out."
+    If mx < x + 60 Then CalText = "Did you know? Every SolidCraft 2000 file" & Chr(10) & "is also a perfectly good door stop," & Chr(10) & "if you print it out."
     NeedRedraw = True
     Return True
 End Function
@@ -241,7 +241,7 @@ Sub SetupDraw(ByVal dp As Any Ptr)
     Dim As Long ox = ClientX(*d), oy = ClientY(*d), x
     Dim As Long w = d->w - 6
     GradientV ox, oy, w, d->h - DLG_TITLE_H - 7, &hFF0000A0, &hFF000020
-    TextAt ox + 16, oy + 12, "SolidCraft 98 Setup", C_HILITE, True
+    TextAt ox + 16, oy + 12, "SolidCraft 2000 Setup", C_HILITE, True
     Dim As String sFile
     If SetupPct > 100 Then
         sFile = "Copying more than all of it..."
@@ -277,9 +277,9 @@ Sub SetupTick(ByVal dp As Any Ptr)
         RenderFrame
         MsgBox "Setup has updated your system files." & Chr(10) & Chr(10) & _
             "Please restart Windows to complete setup." & Chr(10) & _
-            "(Excel may not start afterwards. That's normal.)", MB_EXCLAMATION, "SolidCraft 98 Setup"
+            "(Excel may not start afterwards. That's normal.)", MB_EXCLAMATION, "SolidCraft 2000 Setup"
         MsgBox "Just kidding. Nothing was copied and nothing needs restarting." & Chr(10) & _
-            "Your Excel is fine.", MB_INFO, "SolidCraft 98 Setup"
+            "Your Excel is fine.", MB_INFO, "SolidCraft 2000 Setup"
         d->done = True
     End If
 End Sub
@@ -291,7 +291,7 @@ End Function
 Sub ShowSetup()
     Dim d As TDlg
     SetupPct = 0: SetupLast = Timer
-    d.title = "SolidCraft 98 Setup"
+    d.title = "SolidCraft 2000 Setup"
     d.w = 406: d.h = 216
     CenterDialog d
     d.drawFn = @SetupDraw
@@ -310,15 +310,15 @@ Dim Shared DemoT As Long, DemoScroll As Double, DemoLast As Double
 
 Sub CreditsDraw(ByVal dp As Any Ptr)
     Static lines(0 To 32) As ZString * 56 = { _
-        "SOLIDCRAFT 98", "THE PROFESSIONAL EDITION", "", _
+        "SOLIDCRAFT 2000", "THE PROFESSIONAL EDITION", "", _
         "A FORTY-THOUSAND-LINE PRODUCTION", "", "", _
         "GEOMETRY KERNEL", "KERNEL.BAS (ALL OF IT)", "", _
         "CONSTRAINT SOLVER", "THE VARIANT SQUAD", "", _
         "CHIEF REGENERATE CLICKER", "PRESS F5 THREE TIMES", "", _
-        "ICONS", "16 COLOURS, NO UNDO", "", _
+        "ICONS", "16 COLOURS, 20 UNDOS", "", _
         "FILE FORMAT", "PUT #1, , DESIGN", "", _
-        "QUALITY ASSURANCE", "THE MACHINE SHOP", "", _
-        "SPECIAL THANKS", "THE ONE PC NOBODY IS ALLOWED TO UPDATE", "", _
+        "STABILITY", "EVERY FIFTEEN MINUTES OR SO", "", _
+        "SPECIAL THANKS", "BRETT19, FOR THE BLUE SCREEN", "", _
         "NO PARTS WERE HARMED IN THE MAKING OF THIS SOFTWARE", "", "", "", "", "PRESS ANY KEY" }
     Dim As TDlg Ptr d = dp
     Dim As Long w = d->w, h = d->h, ox = d->x, oy = d->y, i, k
@@ -354,7 +354,7 @@ Sub CreditsDraw(ByVal dp As Any Ptr)
         End If
     Next
     ' the sine scroller along the bottom
-    Dim As String msg = "   GREETINGS TO EVERYONE STILL RUNNING WINDOWS 98 SE ...  TURBO OFF IS FASTER THAN TURBO ON ...  BEST VIEWED AT 800 X 600 ...  "
+    Dim As String msg = "   GREETINGS TO EVERYONE STILL RUNNING WINDOWS 98 SE ...  ROUND IS THE NEW SQUARE ...  TURBO OFF IS FASTER THAN TURBO ON ...  BEST VIEWED AT 800 X 600 ...  "
     Dim As Long mw = TextW(msg, True, 2)
     Dim As Long x = w - ((DemoT * 4) Mod (mw + w))
     For k = 1 To Len(msg)
@@ -420,17 +420,34 @@ End Sub
 Declare Sub DrawLogo(ByVal ox As Long, ByVal oy As Long, ByVal s As Double, ByVal c As ULong)
 Dim Shared SplashMsg As String
 
+Declare Sub DrawStarburst(ByVal cx As Long, ByVal cy As Long, ByVal r As Long, ByRef s1 As String, ByRef s2 As String)
+Declare Sub DrawY2KBadge(ByVal cx As Long, ByVal cy As Long, ByVal r As Long)
+
+' The 2000 look: a grey-teal band across the top, the warm grey below, the
+' box art's starburst, a Y2K sticker, and a little bar that slides along
+' while it loads.
+Dim Shared SplashBarPos As Long
+
 Sub DrawSplash()
-    Dim As Long w = 440, h = 280, x = (ScrW - w) \ 2, y = (ScrH - h) \ 2
-    GradientV x, y, w, h, &hFF000080, &hFF000000
-    DrawLogo x + 90, y + 70, 26, &hFFFFFF00
-    TextAt x + 190, y + 50, "SolidCraft", C_HILITE, True, 3
-    TextAt x + 330, y + 94, "98", &hFFFFFF00, True, 4
-    Text x + 192, y + 136, "Professional Edition", C_FACE
-    Text x + 16, y + 207, SplashMsg, C_HILITE
-    Text x + 16, y + 230, "Version 1.2.0  Build 1998.1023", C_FACE
-    Text x + 16, y + 246, "Copyright (C) 1998-1999 SolidCraft Software. Made with Line and Circle.", C_FACE
-    Frame x, y, w, h, C_SHADOW
+    Dim As Long w = 440, h = 280, x = (ScrW - w) \ 2, y = (ScrH - h) \ 2, bx
+    Fill x, y, w, h, C_FACE
+    GradientH x, y, w, 116, TEAL_DARK, TEAL_LIGHT
+    DrawLogo x + 70, y + 60, 15, &hFFFFFFFF
+    TextAt x + 138, y + 14, "SolidCraft", &hFFFFFFFF, True, 2
+    TextAt x + 136, y + 44, "2000", &hFFFFEC8C, True, 4
+    DrawStarburst x + 382, y + 50, 44, "NEW!", "Fillets!"
+    GradientH x + 1, y + 116, w - 2, 5, TEAL_LIGHT, TEAL_DARK
+    bx = (SplashBarPos * 37) Mod w
+    GradientH x + bx, y + 116, 60, 5, &hFFFFFFFF, TEAL_LIGHT
+    SplashBarPos += 1
+    Text x + 18, y + 130, "Professional Edition", &hFF003840, True
+    Text x + 18, y + 148, "Built on 98 technology", &hFF404040
+    Text x + 18, y + 197, SplashMsg, &hFF000000
+    Text x + 18, y + 236, "Version 1.2.0  Build 2000.0214", &hFF404040
+    Text x + 18, y + 252, "Copyright (C) 1998-2000 SolidCraft Software. Made with Line and Circle.", &hFF404040
+    DrawY2KBadge x + 392, y + 196, 32
+    Text x + 300, y + 266, "* tested until 19 January 2038", &hFF606060
+    Frame x, y, w, h, &hFF404040
 End Sub
 
 Sub SplashProgress(ByRef msg As String)
@@ -600,7 +617,7 @@ Sub PublishPart(ByVal p As Long)
     Dim As Long fh = FreeFile
     If Open(sHtml For Output As #fh) <> 0 Then Busy = False: MsgBox "Could not write " & sHtml, MB_CRITICAL: Exit Sub
     Print #fh, "<HTML>"
-    Print #fh, "<HEAD><TITLE>" & sTitle & " - My SolidCraft 98 Part!!!</TITLE></HEAD>"
+    Print #fh, "<HEAD><TITLE>" & sTitle & " - My SolidCraft 2000 Part!!!</TITLE></HEAD>"
     Print #fh, "<BODY BGCOLOR=""#000080"" TEXT=""#FFFF00"" LINK=""#00FFFF"" VLINK=""#FF00FF"">"
     Print #fh, "<CENTER>"
     Print #fh, "<MARQUEE BEHAVIOR=""alternate""><FONT FACE=""Comic Sans MS"" SIZE=""6""><B>Welcome to " & sTitle & "!!!</B></FONT></MARQUEE>"
@@ -623,7 +640,7 @@ Sub PublishPart(ByVal p As Long)
     Print #fh, "</TR></TABLE></P>"
     Print #fh, "<P><A HREF=""#"">Sign my guestbook!</A> | <A HREF=""#"">View my guestbook!</A> | <A HREF=""#"">Next site in the CAD Web Ring &gt;&gt;</A></P>"
     Print #fh, "<HR WIDTH=""80%"">"
-    Print #fh, "<FONT SIZE=""2"">Best viewed in Netscape at 800x600. Made with SolidCraft 98 Version 1.2.0.<BR>"
+    Print #fh, "<FONT SIZE=""2"">Best viewed in Netscape at 800x600. Made with SolidCraft 2000 Version 1.2.0.<BR>"
     Print #fh, "Last updated " & Format(ClockNow(), "mmmm d, yyyy") & ".</FONT>"
     Print #fh, "</CENTER>"
     Print #fh, "</BODY>"

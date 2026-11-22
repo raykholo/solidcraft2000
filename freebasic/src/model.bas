@@ -1,13 +1,19 @@
-' model.bas - the design, and the .sc98 file.
+' model.bas - the design, and the .sc2 file.
 '
 ' The file is byte for byte what the Windows version writes with Put: a
 ' 72-byte header, then 64 feature records of 134 bytes, little-endian, VB
 ' 16-bit Integers and 8-byte Doubles, fixed strings padded with spaces.
-' Parts move freely between the two versions. Versions 3 and 4 (smaller
-' records) are read and converted, as the Windows version does.
+' Parts move freely between the two versions. Version 6 is SolidCraft 2000
+' 1.0, 7 is Service Pack 1 (1.1: chamfers, hole patterns, chosen edges,
+' sketches on side faces). A part without anything from Service Pack 1 is
+' still saved as 6, so 1.0 can open it. SolidCraft 98 parts (SC98, versions
+' 3 to 5) are read, upgraded and never written; versions 3 and 4 (smaller
+' records) are converted, as the Windows version does.
 
-Const FILE_MAGIC = "SC98"
-Const FILE_VERSION = 5
+Const FILE_MAGIC = "SC2K"
+Const FILE_MAGIC_98 = "SC98"
+Const FILE_VERSION = 7             ' Service Pack 1
+Const FILE_VERSION_1_0 = 6
 Const MAX_FEATURES = 64            ' someone once had 41 features
 
 Const FK_NONE = 0
@@ -16,7 +22,19 @@ Const FK_SKETCH_CIRCLE = 2
 Const FK_EXTRUDE = 3
 Const FK_REVOLVE = 4
 Const FK_HOLE = 5
-Const FK_FOREIGN = 9               ' from a SolidCraft design, and not something SolidCraft 98 can build
+Const FK_FILLET = 6                ' NEW IN 2000: rounds the top edges of an extrude
+Const FK_CHAMFER = 7               ' Service Pack 1: bevels them, at 45 degrees
+Const FK_FOREIGN = 9               ' from a SolidCraft design, and not something SolidCraft 2000 can build
+Const FK_SM_BASE = 20              ' sheet metal (modSheetMetal): base flange, edge flange, flat pattern
+Const FK_SM_EDGE = 21
+Const FK_SM_FLAT = 22
+
+Const FACE_TOP = 0                 ' a sketch's Rsv(1): which face of its extrude
+Const FACE_FRONT = 1               ' -Y
+Const FACE_RIGHT = 2               ' +X
+Const FACE_BACK = 3                ' +Y
+Const FACE_LEFT = 4                ' -X
+Const SIDES_ALL = 15               ' fillet sides: 1 front, 2 right, 4 back, 8 left
 
 Type TFeature
     Kind As Long
@@ -28,8 +46,9 @@ Type TFeature
     P2 As Double                   ' height | - | - | - | hole depth (0 = through all)
     Ref As Long                    ' the feature this one is built on
     Suppressed As Long
-    P3 As Double                   ' rectangle corner radius
+    P3 As Double                   ' rectangle corner radius | hole: how many in the pattern
     Info As String                 ' FK_FOREIGN: what the feature was in SolidCraft ("fillet")
+    Rsv(1 To 3) As Double          ' the "Reserved" doubles: hole patterns, fillet sides, a sketch's face
 End Type
 
 Type TDesign
@@ -39,6 +58,11 @@ Type TDesign
 End Type
 
 Declare Function Y2KDimension() As String
+Declare Function SM_IsSheetMetal(ByVal k As Long) As Boolean
+Declare Function SM_UsesSketch(ByVal k As Long) As Boolean
+Declare Function SM_KindName(ByVal k As Long) As String
+Declare Function SM_KindPrefix(ByVal k As Long) As String
+Declare Function SM_Describe(ByRef d As TDesign, ByVal i As Long) As String
 Dim Shared Y2KHappened As Boolean
 
 Sub NewDesign(ByRef d As TDesign, ByRef sTitle As String)
@@ -57,8 +81,11 @@ Function KindName(ByVal k As Long) As String
     Case FK_EXTRUDE: Return "Extrude"
     Case FK_REVOLVE: Return "Revolve"
     Case FK_HOLE: Return "Hole"
+    Case FK_FILLET: Return "Fillet"
+    Case FK_CHAMFER: Return "Chamfer"
     Case FK_FOREIGN: Return "SolidCraft"
     End Select
+    If SM_IsSheetMetal(k) Then Return SM_KindName(k)
     Return "?"
 End Function
 
@@ -68,8 +95,17 @@ Function KindPrefix(ByVal k As Long) As String
     Case FK_EXTRUDE: Return "Extrude"
     Case FK_REVOLVE: Return "Revolve"
     Case FK_HOLE: Return "Hole"
+    Case FK_FILLET: Return "Fillet"
+    Case FK_CHAMFER: Return "Chamfer"
     End Select
+    If SM_IsSheetMetal(k) Then Return SM_KindPrefix(k)
     Return ""
+End Function
+
+' A fillet or a chamfer: something that finishes the top edges of an extrude.
+' An extrude gets one of them, not both.
+Function IsEdgeFinish(ByVal k As Long) As Boolean
+    Return k = FK_FILLET Or k = FK_CHAMFER
 End Function
 
 Function IsSketch(ByVal k As Long) As Boolean
@@ -101,7 +137,7 @@ Function LastFreeSketch(ByRef d As TDesign) As Long
         If IsSketch(d.F(i).Kind) Then
             Dim used As Boolean = False
             For j = i + 1 To d.Count
-                If d.F(j).Ref = i And (d.F(j).Kind = FK_EXTRUDE Or d.F(j).Kind = FK_REVOLVE) Then used = True
+                If d.F(j).Ref = i And (d.F(j).Kind = FK_EXTRUDE Or d.F(j).Kind = FK_REVOLVE Or SM_UsesSketch(d.F(j).Kind)) Then used = True
             Next j
             If Not used Then Return i
         End If
@@ -175,10 +211,74 @@ Function Fmt0(ByVal v As Double) As String
     Return FmtN(v, 3)
 End Function
 
+' Which face of its extrude sketch f is on (FACE_TOP for the ground too).
+Function SketchFace(ByRef f As TFeature) As Long
+    If f.Ref <= 0 Then Return 0
+    Return CLng(f.Rsv(1))
+End Function
+
+Function FaceName(ByVal face As Long) As String
+    Select Case face
+    Case FACE_FRONT: Return "front"
+    Case FACE_RIGHT: Return "right"
+    Case FACE_BACK: Return "back"
+    Case FACE_LEFT: Return "left"
+    End Select
+    Return "top"
+End Function
+
+' The sides a fillet or chamfer takes: the top sides it leaves sharp are in
+' Rsv(1) (so 0, in every part from before Service Pack 1, is all of them),
+' the bottom sides it takes in Rsv(2).
+Function FinishTop(ByRef f As TFeature) As Long
+    Return SIDES_ALL - (CLng(f.Rsv(1)) And SIDES_ALL)
+End Function
+
+Function FinishBottom(ByRef f As TFeature) As Long
+    Return CLng(f.Rsv(2)) And SIDES_ALL
+End Function
+
+' "", " front and back", " front, right and left": which sides, for Describe.
+Function SidesText(ByVal mask As Long) As String
+    Dim As String w(0 To 3), r
+    Dim As Long n, k
+    If mask = SIDES_ALL Or mask = 0 Then Return ""
+    Dim nm(0 To 3) As String = {"front", "right", "back", "left"}
+    For k = 0 To 3
+        If mask And (2 ^ k) Then w(n) = nm(k): n += 1
+    Next k
+    For k = 0 To n - 1
+        If k = 0 Then
+            r = " " & w(k)
+        ElseIf k = n - 1 Then
+            r &= " and " & w(k)
+        Else
+            r &= ", " & w(k)
+        End If
+    Next k
+    Return r
+End Function
+
+' "top edges", "top front and back edges, bottom edges": what a fillet takes.
+Function EdgesText(ByRef f As TFeature) As String
+    Dim As Long mt = FinishTop(f), mb = FinishBottom(f)
+    Dim As String r
+    If mt > 0 Then r = "top" & SidesText(mt) & " edges"
+    If mt > 0 And mb > 0 Then r &= ", "
+    If mb > 0 Then r &= "bottom" & SidesText(mb) & " edges"
+    Return r
+End Function
+
+Function HoleCount(ByRef f As TFeature) As Long
+    If f.P3 >= 2 Then Return Int(f.P3)
+    Return 1
+End Function
+
 '  ", on Extrude1" / ", on Extrude1 +2" / ", Z 5" / "" for where a sketch sits.
 Function SketchPlace(ByRef d As TDesign, ByRef f As TFeature) As String
     If f.Ref > 0 Then
         Dim s As String = ", on " & FeatureName(d, f.Ref)
+        If SketchFace(f) <> FACE_TOP Then s &= " " & FaceName(SketchFace(f))
         If f.Z <> 0 Then s &= IIf(f.Z > 0, " +", " ") & Fmt(f.Z)
         Return s
     ElseIf f.Z <> 0 Then
@@ -201,11 +301,25 @@ Function Describe(ByRef d As TDesign, ByVal i As Long) As String
             s = FeatureName(d, .Ref) & ", " & Fmt(.P1) & " mm"
         Case FK_REVOLVE
             s = FeatureName(d, .Ref) & ", " & Fmt(.P1) & Chr(176) & " about Y"
+        Case FK_FILLET, FK_CHAMFER
+            If .Kind = FK_FILLET Then s = "R " & Fmt(.P1) & " mm, " Else s = Fmt(.P1) & " mm x 45" & Chr(176) & ", "
+            s &= EdgesText(d.F(i)) & " of " & FeatureName(d, .Ref)
         Case FK_FOREIGN
-            s = "From SolidCraft. Not in SolidCraft 98."
+            s = "From SolidCraft. Not in SolidCraft 2000."
         Case FK_HOLE
-            s = "D " & Fmt(.P1) & " mm on " & FeatureName(d, .Ref) & " top face, "
+            If .P3 >= 2 Then s = Int(.P3) & " x "
+            s &= "D " & Fmt(.P1) & " mm on " & FeatureName(d, .Ref) & " top face, "
             If .P2 <= 0 Then s &= "through all" Else s &= Fmt(.P2) & " mm deep"
+            If .P3 >= 2 Then
+                If .Rsv(1) > 0 Then
+                    s &= ", on a " & Fmt(.Rsv(1)) & " mm bolt circle"
+                Else
+                    s &= ", in a row " & Fmt(.Rsv(2)) & " mm apart"
+                    If .Rsv(3) <> 0 Then s &= " at " & Fmt(.Rsv(3)) & Chr(176)
+                End If
+            End If
+        Case Else
+            If SM_IsSheetMetal(.Kind) Then s = SM_Describe(d, i)
         End Select
     End With
     Return s
@@ -231,11 +345,25 @@ End Function
 
 Dim Shared LastFileError As String
 
+' The oldest version that can hold this part, so a part without anything
+' from Service Pack 1 still opens in SolidCraft 2000 1.0. One with a chamfer,
+' a hole pattern, a fillet on chosen edges or a sketch on a side face tells
+' 1.0 to get Service Pack 1, which is the truth.
+Function SaveVersion(ByRef d As TDesign) As Long
+    Dim As Long i, v = FILE_VERSION_1_0
+    For i = 1 To d.Count
+        If d.F(i).Kind = FK_CHAMFER Then v = FILE_VERSION
+        If d.F(i).Kind = FK_HOLE And d.F(i).P3 >= 2 Then v = FILE_VERSION
+        If IsEdgeFinish(d.F(i).Kind) And (d.F(i).Rsv(1) <> 0 Or d.F(i).Rsv(2) <> 0) Then v = FILE_VERSION
+        If IsSketch(d.F(i).Kind) And d.F(i).Rsv(1) <> 0 Then v = FILE_VERSION
+    Next i
+    Return v
+End Function
+
 ' Returns True on success; LastFileError says what went wrong otherwise.
 Function SaveDesign(ByRef d As TDesign, ByRef sPath As String) As Boolean
     Dim As Long fh, i
     Dim As Short sh
-    Dim As Double z = 0
     LastFileError = ""
     If Len(Dir(sPath)) Then
         If Kill(sPath) <> 0 Then LastFileError = "Permission denied" & Chr(10) & "(While replacing the old file: " & sPath & ")": Return False
@@ -246,7 +374,7 @@ Function SaveDesign(ByRef d As TDesign, ByRef sPath As String) As Boolean
         Return False
     End If
     Put #fh, , FixStr(FILE_MAGIC, 4)
-    sh = FILE_VERSION: Put #fh, , sh
+    sh = SaveVersion(d): Put #fh, , sh
     Put #fh, , FixStr(d.Title, 64)
     sh = d.Count: Put #fh, , sh
     For i = 1 To MAX_FEATURES
@@ -258,7 +386,7 @@ Function SaveDesign(ByRef d As TDesign, ByRef sPath As String) As Boolean
             sh = .Suppressed: Put #fh, , sh
             Put #fh, , .P3
             Put #fh, , FixStr(.Info, 32)
-            Put #fh, , z: Put #fh, , z: Put #fh, , z
+            Put #fh, , .Rsv(1): Put #fh, , .Rsv(2): Put #fh, , .Rsv(3)
         End With
     Next i
     Close #fh
@@ -284,9 +412,11 @@ Function GetDbl(ByVal fh As Long) As Double
 End Function
 
 ' Returns 0 on success, 1 not a part, 2 too new, 3 too old, 4 couldn't read,
-' 5 converted from version 3 (say so). LastFileError has the message.
+' 5 converted from version 3 (say so), 6 upgraded from SolidCraft 98 (say so).
+' LastFileError has the message.
 Function LoadDesign(ByRef d As TDesign, ByRef sPath As String) As Long
     Dim As Long fh, i, ver, cnt
+    Dim As Boolean from98
     Dim As Double dummy
     fh = FreeFile
     If Open(sPath For Binary Access Read As #fh) <> 0 Then
@@ -294,15 +424,18 @@ Function LoadDesign(ByRef d As TDesign, ByRef sPath As String) As Long
         Return 4
     End If
     Dim As String magic = GetFix(fh, 4)
-    If magic <> FILE_MAGIC Then
+    ver = GetShort(fh)
+    If magic = FILE_MAGIC_98 Then
+        from98 = True
+        If ver > 5 Then ver = 99          ' there's no newer SolidCraft 98 part
+    ElseIf magic <> FILE_MAGIC Then
         Close #fh
-        LastFileError = "'" & sPath & "' is not a SolidCraft 98 part."
+        LastFileError = "'" & sPath & "' is not a SolidCraft 2000 part."
         Return 1
     End If
-    ver = GetShort(fh)
     If ver > FILE_VERSION Then
         Close #fh
-        LastFileError = "This file was saved by a newer version of SolidCraft." & Chr(10) & Chr(10) & "Please upgrade to SolidCraft 98 Second Edition."
+        LastFileError = "This file was saved by a newer version of SolidCraft." & Chr(10) & Chr(10) & "Please upgrade to SolidCraft 2000 Service Pack 1."
         Return 2
     End If
     If ver < 3 Then
@@ -322,7 +455,7 @@ Function LoadDesign(ByRef d As TDesign, ByRef sPath As String) As Long
             .Suppressed = GetShort(fh)
             If ver >= 4 Then .P3 = GetDbl(fh)
             If ver >= 5 Then .Info = GetFix(fh, 32)
-            If ver >= 4 Then dummy = GetDbl(fh): dummy = GetDbl(fh): dummy = GetDbl(fh)
+            If ver >= 4 Then .Rsv(1) = GetDbl(fh): .Rsv(2) = GetDbl(fh): .Rsv(3) = GetDbl(fh)
         End With
     Next i
     Close #fh
@@ -330,6 +463,11 @@ Function LoadDesign(ByRef d As TDesign, ByRef sPath As String) As Long
     For i = cnt + 1 To MAX_FEATURES
         d.F(i).Kind = FK_NONE
     Next i
+    If from98 Then
+        LastFileError = "This part was made in SolidCraft 98, and has been upgraded to SolidCraft 2000." & Chr(10) & Chr(10) & _
+            "Save it to keep the new format. SolidCraft 98 won't be able to open it again." & Chr(10) & "(That's progress.)"
+        Return 6
+    End If
     If ver = 3 Then
         LastFileError = "This file was saved by an older version of SolidCraft." & Chr(10) & Chr(10) & _
             "It has been converted. Save it to keep the new format." & Chr(10) & "(This has never happened before.)"

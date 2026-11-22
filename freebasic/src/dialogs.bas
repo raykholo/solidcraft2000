@@ -7,7 +7,7 @@ Dim Shared Turbo As Boolean
 
 ' ---- the number dialog (frmParams) ----
 
-Const MAX_FIELDS = 7
+Const MAX_FIELDS = 9
 Dim Shared ParamValue(0 To MAX_FIELDS - 1) As Double
 Dim Shared ParamCount As Long
 Dim Shared ParamMismatches As Long         ' Turbo: how many type mismatches in a row

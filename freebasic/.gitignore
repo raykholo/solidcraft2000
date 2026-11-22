@@ -2,8 +2,8 @@ build/
 *.o
 *.png
 !docs/**/*.png
-sc98
-sc98.exe
+sc2000
+sc2000.exe
 tests/out/
 dist/
 tests/home/

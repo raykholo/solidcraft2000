@@ -1,7 +1,9 @@
 ' mesh.bas - turns the part into triangles: for Export for Rapid
 ' Prototyping (.stl) and for the shaded view. A port of the Windows
 ' version's modMesh: closed, outward-facing; holes cut through; a body
-' standing wholly on another's top face is joined to it.
+' standing wholly on another's top face is joined to it. Fillets and
+' chamfers are rings of the outline moved in; a body on a side face is built
+' in its sketch's frame and turned into the world as it's added.
 
 Type TTri
     X1 As Double
@@ -37,12 +39,16 @@ Dim Shared mJoin() As Long
 Dim Shared mLX() As Double, mLY() As Double
 Dim Shared mLS() As Long, mLN() As Long
 Dim Shared mNL As Long
+Dim Shared mMf As TFrame            ' the frame of the body being meshed (side faces)
+Dim Shared mMfOn As Boolean
 
-Sub CopyArr(dst() As Double, src() As Double, ByVal n As Long)
-    Dim i As Long
-    ReDim dst(0 To IIf(n > 0, n - 1, 0))
-    For i = 0 To n - 1: dst(i) = src(i): Next
-End Sub
+Declare Sub SM_Mesh(ByRef d As TDesign, ByVal i As Long)
+
+' For sheet metal: add triangles, then turn each closed body it makes to
+' face out with MeshOrient(the MeshCount from before it).
+Function MeshCount() As Long
+    Return mN
+End Function
 
 Sub AddTri(ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
            ByVal x2 As Double, ByVal y2 As Double, ByVal z2 As Double, _
@@ -52,6 +58,11 @@ Sub AddTri(ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
     If x1 = x2 And y1 = y2 And z1 = z2 Then Exit Sub
     If x2 = x3 And y2 = y3 And z2 = z3 Then Exit Sub
     If x3 = x1 And y3 = y1 And z3 = z1 Then Exit Sub
+    If mMfOn Then                       ' a body on a side face: into the world
+        ToWorld mMf, x1, y1, z1, x1, y1, z1
+        ToWorld mMf, x2, y2, z2, x2, y2, z2
+        ToWorld mMf, x3, y3, z3, x3, y3, z3
+    End If
     If mN > UBound(mT) Then ReDim Preserve mT(0 To UBound(mT) * 2 + 1)
     With mT(mN)
         .X1 = x1: .Y1 = y1: .Z1 = z1
@@ -76,6 +87,10 @@ Sub OrientOutward(ByVal a As Long, ByVal b As Long)
             Swap .X2, .X3: Swap .Y2, .Y3: Swap .Z2, .Z3
         End With
     Next i
+End Sub
+
+Sub MeshOrient(ByVal first As Long)
+    If mN > first Then OrientOutward first, mN
 End Sub
 
 Function Orient(ByVal ax As Double, ByVal ay As Double, ByVal bx As Double, ByVal by As Double, ByVal cx As Double, ByVal cy As Double) As Double
@@ -169,15 +184,30 @@ End Function
 
 ' ---- extrudes ----
 
+' ---- extrudes ----
+
+' Bottom and top of extrude i, bottom first, and the outline of its bottom
+' face (its sketch, less any bottom fillet), anticlockwise. False if it is
+' flat or has no outline.
 Function GetBody(ByRef d As TDesign, ByVal i As Long, ByRef z0 As Double, ByRef z1 As Double, _
                  ox() As Double, oy() As Double, ByRef no As Long) As Boolean
     Dim As Boolean seam(Any)
     ExtrudeRange d, i, z0, z1
     If z1 < z0 Then Swap z0, z1
     If z1 - z0 < MEPS Then Return False
-    no = ProfilePoints(d.F(d.F(i).Ref), ox(), oy(), seam(), mSegs)
+    Dim bf As TFeature = BottomFace(d, i)
+    no = ProfilePoints(bf, ox(), oy(), seam(), mSegs, True)
     no = CleanOutline(ox(), oy(), no)
     Return no >= 3
+End Function
+
+' The flat part of extrude i's top (smaller than its outline if it has a
+' fillet), anticlockwise.
+Function GetTop(ByRef d As TDesign, ByVal i As Long, tx() As Double, ty() As Double) As Long
+    Dim As Boolean seam(Any)
+    Dim tf As TFeature = TopFace(d, i)
+    Dim n As Long = ProfilePoints(tf, tx(), ty(), seam(), mSegs, True)
+    Return CleanOutline(tx(), ty(), n)
 End Function
 
 Function IsBody(ByRef d As TDesign, ByVal i As Long) As Boolean
@@ -185,24 +215,29 @@ Function IsBody(ByRef d As TDesign, ByVal i As Long) As Boolean
     Return False
 End Function
 
-' The holes that come into extrude i through its top.
+' The holes that come into extrude i through its top: those that start at or
+' above its top, inside its outline, and get down to its top or further.
 Function CollectHoles(ByRef d As TDesign, ByVal i As Long, ByVal z1 As Double, h() As THole) As Long
-    Dim As Long j, n
-    Dim As Double zt, zb, r
+    Dim As Long j, n, q
+    Dim As Double zt, zb, r, hx, hy
+    Dim s As TFeature = TopFace(d, i)
     ReDim h(0 To 7)
     For j = i + 1 To d.Count
         If d.F(j).Kind = FK_HOLE And d.F(j).Suppressed = 0 Then
-            If RefOk(d, j) Then
+            If RefOk(d, j) AndAlso SameFrame(BodyFrame(d, j), BodyFrame(d, i)) Then
                 r = d.F(j).P1 / 2
-                If ProfileContains(d.F(d.F(i).Ref), d.F(j).X, d.F(j).Y, r) Then
-                    HoleSpan d, j, zt, zb
-                    If zt >= z1 - MEPS And zb <= z1 + MEPS Then
-                        If n > UBound(h) Then ReDim Preserve h(0 To n * 2)
-                        h(n).X = d.F(j).X: h(n).Y = d.F(j).Y: h(n).R = r
-                        h(n).ZTop = zt: h(n).ZBot = zb: h(n).Feat = j
-                        n += 1
+                For q = 0 To HoleCount(d.F(j)) - 1          ' every hole of a pattern
+                    HoleAt d.F(j), q, hx, hy
+                    If ProfileContains(s, hx, hy, r) Then
+                        HoleSpan d, j, zt, zb, q
+                        If zt >= z1 - MEPS And zb <= z1 + MEPS Then
+                            If n > UBound(h) Then ReDim Preserve h(0 To n * 2)
+                            h(n).X = hx: h(n).Y = hy: h(n).R = r
+                            h(n).ZTop = zt: h(n).ZBot = zb: h(n).Feat = j
+                            n += 1
+                        End If
                     End If
-                End If
+                Next q
             End If
         End If
     Next j
@@ -221,25 +256,28 @@ Sub FindJoins(ByRef d As TDesign)
     For j = 1 To d.Count
         If IsBody(d, j) AndAlso GetBody(d, j, bz0, bz1, bx(), by(), nb) Then
             For i = 1 To d.Count
-                If i <> j AndAlso IsBody(d, i) AndAlso GetBody(d, i, az0, az1, ax(), ay(), na) Then
-                    If Abs(az1 - bz0) < MEPS Then
-                        ok = (Relation(ax(), ay(), na, bx(), by(), nb) = 1)
-                        If ok Then
-                            nh = CollectHoles(d, i, az1, h())
-                            For k = 0 To nh - 1
-                                CircleLoop h(k).X, h(k).Y, h(k).R, hx(), hy()
-                                If Relation(bx(), by(), nb, hx(), hy(), mSegs) = -1 Then ok = False: Exit For
-                            Next k
+                If i <> j AndAlso IsBody(d, i) AndAlso SameFrame(BodyFrame(d, i), BodyFrame(d, j)) Then
+                    If GetBody(d, i, az0, az1, ax(), ay(), na) Then
+                        na = GetTop(d, i, ax(), ay())
+                        If Abs(az1 - bz0) < MEPS Then
+                            ok = (Relation(ax(), ay(), na, bx(), by(), nb) = 1)
+                            If ok Then
+                                nh = CollectHoles(d, i, az1, h())
+                                For k = 0 To nh - 1
+                                    CircleLoop h(k).X, h(k).Y, h(k).R, hx(), hy()
+                                    If Relation(bx(), by(), nb, hx(), hy(), mSegs) = -1 Then ok = False: Exit For
+                                Next k
+                            End If
+                            If ok Then
+                                For k = 1 To j - 1
+                                    If mJoin(k) = i Then
+                                        GetBody d, k, cz0, cz1, cx(), cy(), nc
+                                        If Relation(cx(), cy(), nc, bx(), by(), nb) <> 0 Then ok = False: Exit For
+                                    End If
+                                Next k
+                            End If
+                            If ok Then mJoin(j) = i: Exit For
                         End If
-                        If ok Then
-                            For k = 1 To j - 1
-                                If mJoin(k) = i Then
-                                    GetBody d, k, cz0, cz1, cx(), cy(), nc
-                                    If Relation(cx(), cy(), nc, bx(), by(), nb) <> 0 Then ok = False: Exit For
-                                End If
-                            Next k
-                        End If
-                        If ok Then mJoin(j) = i: Exit For
                     End If
                 End If
             Next i
@@ -449,12 +487,16 @@ Function CapLoops(ox() As Double, oy() As Double, ByVal no As Long, ByVal z As D
     Return True
 End Function
 
+Declare Sub FilletWalls(ByRef d As TDesign, ByVal i As Long)
+
 Sub MeshExtrude(ByRef d As TDesign, ByVal i As Long)
-    Dim As Double z0, z1, fz0, fz1, zb
-    Dim As Double ox(Any), oy(Any), fx(Any), fy(Any), hx(Any), hy(Any)
-    Dim As Long no, nh, j, k, k2, nf
+    Dim As Double z0, z1, fz0, fz1, zb, fil
+    Dim As Double ox(Any), oy(Any), fx(Any), fy(Any), hx(Any), hy(Any), tx(Any), ty(Any)
+    Dim As Long no, nh, j, k, k2, nf, nt
     Dim h() As THole
     If Not GetBody(d, i, z0, z1, ox(), oy(), no) Then Exit Sub
+    fil = FilletRadius(d, i)
+    nt = GetTop(d, i, tx(), ty())
     nh = CollectHoles(d, i, z1, h())
     Dim inFoot(0 To nh) As Boolean
 
@@ -473,7 +515,7 @@ Sub MeshExtrude(ByRef d As TDesign, ByVal i As Long)
     For k = 0 To nh - 1
         If (Not inFoot(k)) AndAlso h(k).ZBot < z1 - MEPS Then AddCircleLoop h(k).X, h(k).Y, h(k).R
     Next k
-    If Not CapLoops(ox(), oy(), no, z1, True, i) Then
+    If Not CapLoops(tx(), ty(), nt, z1, True, i) Then
         mErr &= FeatureName(d, i) & " (its holes are too close together to cap). "
         Exit Sub
     End If
@@ -488,11 +530,15 @@ Sub MeshExtrude(ByRef d As TDesign, ByVal i As Long)
     End If
 
     ' the outside walls
-    For k = 0 To no - 1
-        k2 = (k + 1) Mod no
-        AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z0, ox(k2), oy(k2), z1, i
-        AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z1, ox(k), oy(k), z1, i
-    Next k
+    If fil <= 0 Then
+        For k = 0 To no - 1
+            k2 = (k + 1) Mod no
+            AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z0, ox(k2), oy(k2), z1, i
+            AddTri ox(k), oy(k), z0, ox(k2), oy(k2), z1, ox(k), oy(k), z1, i
+        Next k
+    Else
+        FilletWalls d, i
+    End If
 
     ' the holes: walls facing into them, floors where they stop, and a roof
     ' where one starts on this top under a body that stands on it
@@ -504,9 +550,42 @@ Sub MeshExtrude(ByRef d As TDesign, ByVal i As Long)
             If zb > z0 + MEPS Then HoleDisc h(k).X, h(k).Y, h(k).R, zb, True, h(k).Feat
             If inFoot(k) AndAlso h(k).ZTop <= z1 + MEPS Then HoleDisc h(k).X, h(k).Y, h(k).R, z1, False, h(k).Feat
         ElseIf inFoot(k) Then
-            HoleDisc h(k).X, h(k).Y, h(k).R, z1, True, h(k).Feat
+            HoleDisc h(k).X, h(k).Y, h(k).R, z1, True, h(k).Feat       ' a hole above that stops right here
         End If
     Next k
+End Sub
+
+' Quads between two rings of n points, the lower one at za, facing out.
+Sub RingBand(ax() As Double, ay() As Double, ByVal za As Double, _
+             bx() As Double, by() As Double, ByVal zb As Double, ByVal n As Long, ByVal body As Long)
+    Dim As Long k, k2
+    If zb - za < MEPS Then Exit Sub
+    For k = 0 To n - 1
+        k2 = (k + 1) Mod n
+        AddTri ax(k), ay(k), za, ax(k2), ay(k2), za, bx(k2), by(k2), zb, body
+        AddTri ax(k), ay(k), za, bx(k2), by(k2), zb, bx(k), by(k), zb, body
+    Next k
+End Sub
+
+' The walls of a filleted extrude: up a bottom fillet, the straight sides,
+' up a top fillet, each only on the sides it takes (kernel's ExtrudeRings).
+' Each ring is the outline moved in a little more, to the top's edge. A
+' chamfer is one band, straight to the top's edge. Rings have the same
+' number of points (a sharp corner is a corner of radius 0, all its points
+' in one place), and the slivers between points in the same place have no
+' area and are left out.
+Sub FilletWalls(ByRef d As TDesign, ByVal i As Long)
+    Dim As Boolean seam(Any), rkey(Any)
+    Dim As Double rz(Any), ax(Any), ay(Any), bx(Any), by(Any)
+    Dim As TFeature rs(Any)
+    Dim As Long n, m, nr
+    nr = ExtrudeRings(d, i, mSegs \ 4, rz(), rs(), rkey())
+    n = ProfilePoints(rs(0), ax(), ay(), seam(), mSegs, True)
+    For m = 1 To nr - 1
+        ProfilePoints rs(m), bx(), by(), seam(), mSegs, True
+        RingBand ax(), ay(), rz(m - 1), bx(), by(), rz(m), n, i
+        CopyArr ax(), bx(), UBound(bx) + 1: CopyArr ay(), by(), UBound(by) + 1
+    Next m
 End Sub
 
 ' ---- revolves ----
@@ -557,6 +636,8 @@ Function MeshDesign(ByRef d As TDesign, t() As TTri, ByVal nSegs As Long, ByRef 
     FindJoins d
     For i = 1 To d.Count
         If d.F(i).Suppressed = 0 AndAlso RefOk(d, i) Then
+            mMf = BodyFrame(d, i)            ' built in its own frame, added in the world's
+            mMfOn = (d.F(i).Kind = FK_EXTRUDE Or d.F(i).Kind = FK_REVOLVE) And Not IsLevel(mMf)
             Select Case d.F(i).Kind
             Case FK_EXTRUDE
                 MeshExtrude d, i
@@ -564,9 +645,12 @@ Function MeshDesign(ByRef d As TDesign, t() As TTri, ByVal nSegs As Long, ByRef 
                 first = mN
                 MeshRevolve d, i, nSegs
                 If mN > first Then OrientOutward first, mN
+            Case FK_SM_BASE, FK_SM_EDGE
+                SM_Mesh d, i
             End Select
         End If
     Next i
+    mMfOn = False
     ReDim t(0 To IIf(mN > 0, mN - 1, 0))
     For i = 0 To mN - 1: t(i) = mT(i): Next
     sErr = mErr

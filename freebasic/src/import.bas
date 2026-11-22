@@ -2,7 +2,7 @@
 ' of the Windows version's modImport.
 '
 ' A .solidcraft file is a ZIP holding document.json, the design's feature
-' history (a plain-JSON design works too). We rebuild what SolidCraft 98 can
+' history (a plain-JSON design works too). We rebuild what SolidCraft 2000 can
 ' build: flat sketches of rectangles (rounded or not) and circles, extrudes,
 ' revolves about the sketch's Y axis, and straight-down holes. Everything
 ' else stays in the timeline as "Requires SolidCraft 2000". A feature comes
@@ -243,7 +243,7 @@ Sub ReadSketch(ByRef d As TDesign, ByVal f As Long)
             NotOk s, "drawn on the " & JStr(JGet(plane, "name")) & " plane"
         ElseIf JGet(plane, "offset") > 0 Then
             v = NodeValue(JGet(plane, "offset"), ok)
-            If ok Then s.Z = v Else NotOk s, "an offset SolidCraft 98 can't work out"
+            If ok Then s.Z = v Else NotOk s, "an offset SolidCraft 2000 can't work out"
         End If
     Case "face"
         pl = JGet(plane, "plane")
@@ -307,7 +307,7 @@ Sub ReadSketch(ByRef d As TDesign, ByVal f As Long)
             NotOk s, "a shape that isn't a rectangle or a circle"
         End If
     End If
-    If s.NP = 0 And s.Ok Then NotOk s, "nothing SolidCraft 98 can draw"
+    If s.NP = 0 And s.Ok Then NotOk s, "nothing SolidCraft 2000 can draw"
     If s.Ok Then FindHoles s
     If iNSk > UBound(iSk) Then ReDim Preserve iSk(0 To UBound(iSk) * 2 + 1)
     iSk(iNSk) = s
@@ -322,7 +322,7 @@ Function FindSketch(ByVal id As Long) As Long
     Return -1
 End Function
 
-' The SolidCraft 98 extrude whose top is at height z and that the circle fits on.
+' The SolidCraft 2000 extrude whose top is at height z and that the circle fits on.
 Function ExtrudeWithTopAt(ByRef d As TDesign, ByVal z As Double, ByVal x As Double, ByVal y As Double, ByVal r As Double) As Long
     Dim As Long i
     Dim As Double z0, z1
@@ -354,7 +354,7 @@ Function OutlineProfile(ByVal k As Long, ByVal n As Long) As Long
     Return 0
 End Function
 
-' Adds one SolidCraft 98 sketch per outline of sketch k, at height z, and puts
+' Adds one SolidCraft 2000 sketch per outline of sketch k, at height z, and puts
 ' their indices in idx(). A sketch on a face sits on the extrude under it.
 Sub EmitSketches(ByRef d As TDesign, ByVal k As Long, ByVal z As Double, idx() As Long)
     Dim As Long i, n, onExt
@@ -415,12 +415,12 @@ Sub ImportExtrude(ByRef d As TDesign, ByVal f As Long)
     If JGet(f, "taper") > 0 Then Foreign d, f, "Extrude", "tapered": Exit Sub
     ext = JGet(f, "extent")
     If JGet(ext, "distance2") > 0 Or JGet(ext, "to") > 0 Or JGet(ext, "start_offset") > 0 Then
-        Foreign d, f, "Extrude", "an extent SolidCraft 98 doesn't have": Exit Sub
+        Foreign d, f, "Extrude", "an extent SolidCraft 2000 doesn't have": Exit Sub
     End If
     through = JBool(JGet(ext, "through_all"))
     If Not through Then
         dist = NodeValue(JGet(ext, "distance"), ok)
-        If Not ok Or dist <= 0 Then Foreign d, f, "Extrude", "a distance SolidCraft 98 can't work out": Exit Sub
+        If Not ok Or dist <= 0 Then Foreign d, f, "Extrude", "a distance SolidCraft 2000 can't work out": Exit Sub
     End If
     sDir = JStr(JGet(ext, "direction"))
     sOp = JStr(JGet(f, "operation"))
@@ -478,7 +478,7 @@ Sub ImportRevolve(ByRef d As TDesign, ByVal f As Long)
     If JStr(JGet(JGet(f, "profiles"), "type")) <> "all" Then Foreign d, f, "Revolve", "only some of its sketch's profiles": Exit Sub
     If JGet(f, "angle") > 0 Then
         ang = NodeValue(JGet(f, "angle"), ok)
-        If Not ok Then Foreign d, f, "Revolve", "an angle SolidCraft 98 can't work out": Exit Sub
+        If Not ok Then Foreign d, f, "Revolve", "an angle SolidCraft 2000 can't work out": Exit Sub
     Else
         ang = 360
     End If
@@ -499,7 +499,7 @@ Sub ImportRevolve(ByRef d As TDesign, ByVal f As Long)
         If idx(i) = 0 Then Exit Sub
         Dim e As TFeature
         e.Kind = FK_REVOLVE: e.Ref = idx(i)
-        e.P1 = -ang          ' SolidCraft turns +X towards +Z; SolidCraft 98 the other way
+        e.P1 = -ang          ' SolidCraft turns +X towards +Z; SolidCraft 2000 the other way
         If AddRaw(d, e, IIf(n > 1, Left(sName, 20) & " " & (i + 1), sName)) = 0 Then Exit Sub
     Next
 End Sub
@@ -516,15 +516,15 @@ Sub ImportHole(ByRef d As TDesign, ByVal f As Long)
     If sKind <> "" And sKind <> "simple" And sKind <> "drilled" Then Foreign d, f, "Hole", PrettyType(sKind): Exit Sub
     If JGet(f, "diameter") = 0 Then Foreign d, f, "Hole", "a clearance or tapped size": Exit Sub
     dia = NodeValue(JGet(f, "diameter"), ok)
-    If Not ok Or dia <= 0 Then Foreign d, f, "Hole", "a diameter SolidCraft 98 can't work out": Exit Sub
+    If Not ok Or dia <= 0 Then Foreign d, f, "Hole", "a diameter SolidCraft 2000 can't work out": Exit Sub
     If JGet(f, "depth") > 0 Then
         depth = NodeValue(JGet(f, "depth"), ok)
-        If Not ok Or depth <= 0 Then Foreign d, f, "Hole", "a depth SolidCraft 98 can't work out": Exit Sub
+        If Not ok Or depth <= 0 Then Foreign d, f, "Hole", "a depth SolidCraft 2000 can't work out": Exit Sub
     End If
     If JGet(f, "to") > 0 Then Foreign d, f, "Hole", "drilled to an object": Exit Sub
     x = NodeValue(JItem(pos_, 0), ok): y = NodeValue(JItem(pos_, 1), ok): z = NodeValue(JItem(pos_, 2), ok)
     t = ExtrudeWithTopAt(d, z, x, y, dia / 2)
-    If t = 0 Then Foreign d, f, "Hole", "not on the top of a block SolidCraft 98 built": Exit Sub
+    If t = 0 Then Foreign d, f, "Hole", "not on the top of a block SolidCraft 2000 built": Exit Sub
     Dim h As TFeature
     h.Kind = FK_HOLE: h.Ref = t: h.X = x: h.Y = y: h.P1 = dia: h.P2 = depth
     AddRaw d, h, JStr(JGet(f, "name"))
@@ -554,7 +554,7 @@ Function ImportSolidCraft(ByRef sPath As String, ByRef d As TDesign) As Boolean
     Dim As String sFormat = JStr(JGet(root, "format"))
     feats = JGet(root, "features")
     If JKind(feats) <> JS_ARR Or (Left(sFormat, 11) <> "solidcraft/" And Left(sFormat, 11) <> "solvecraft/") Then
-        MsgBox "'" & sPath & "' isn't a SolidCraft design that SolidCraft 98 can read.", MB_EXCLAMATION
+        MsgBox "'" & sPath & "' isn't a SolidCraft design that SolidCraft 2000 can read.", MB_EXCLAMATION
         Return False
     End If
     NewDesign d, Left(JStr(JGet(root, "name")), 64)
@@ -579,12 +579,12 @@ Function ImportSolidCraft(ByRef sPath As String, ByRef d As TDesign) As Boolean
         If iSk(k).Ok And Not iSk(k).Used Then EmitSketches d, k, iSk(k).Z, unused()
     Next
     If iNForeign > 0 Then
-        MsgBox "This design was made in SolidCraft. SolidCraft 98 has opened what it can build." & Chr(10) & Chr(10) & _
+        MsgBox "This design was made in SolidCraft. SolidCraft 2000 has opened what it can build." & Chr(10) & Chr(10) & _
             "These features require SolidCraft 2000 and have been left out:" & Chr(10) & iForeign & Chr(10) & _
             "They're still in the timeline.", MB_INFO
     End If
     If iFull Then
-        MsgBox "The design has more features than a SolidCraft 98 part can hold (" & MAX_FEATURES & ")." & Chr(10) & _
+        MsgBox "The design has more features than a SolidCraft 2000 part can hold (" & MAX_FEATURES & ")." & Chr(10) & _
             "The rest have been left out.", MB_EXCLAMATION
     End If
     Return True

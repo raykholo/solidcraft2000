@@ -1,4 +1,4 @@
-' remote.bas - remote control. Another program drives SolidCraft 98 over a
+' remote.bas - remote control. Another program drives SolidCraft 2000 over a
 ' pipe, the way Unix programs have always been scripted (see Expect), and
 ' reads the screen back as text, the way a screen reader does.
 '
@@ -19,7 +19,7 @@
 '   wait <ms>
 '   shot <file.bmp>           a screenshot
 '   help                      this list
-'   quit                      ends SolidCraft 98 at once, nothing saved
+'   quit                      ends SolidCraft 2000 at once, nothing saved
 '
 ' Actions answer "ok" once the screen has settled; "error: ..." if not.
 
@@ -392,7 +392,7 @@ Function DescribeScreen() As String
     End If
     ' the menu bar, and the open menu
     r &= "Menu bar:"
-    For i = 0 To 6
+    For i = 0 To NMENUS - 1
         r &= IIf(i = 0, " ", ", ") & AmpStrip(MenuTitles(i))
         AddTarget MenuTitles(i), (MenuX(i) + MenuX(i + 1)) \ 2, TitleH + MENU_H \ 2
     Next
@@ -537,13 +537,13 @@ Sub RemoteDo(ByRef l As String)
         Dim As String sTitle = Trim(IIf(gt, Left(rest, gt - 1), rest)), sItem = IIf(gt, Trim(Mid(rest, gt + 1)), "")
         Dim As String iName = NormName(sItem)
         Dim As Long m = -1, k, mm
-        For k = 0 To 6
+        For k = 0 To NMENUS - 1
             If NormName(MenuTitles(k)) = NormName(sTitle) Then m = k
         Next
         If m < 0 Then
             ' not that menu: is the item in another one?
             If gt Then
-                For mm = 0 To 6
+                For mm = 0 To NMENUS - 1
                     For k = 0 To ItemsIn(mm) - 1
                         Dim it0 As TMenuItem = MenuItemAt(mm, k)
                         If it0.caption <> "-" AndAlso Len(iName) AndAlso Left(NormName(it0.caption), Len(iName)) = iName Then
@@ -555,7 +555,7 @@ Sub RemoteDo(ByRef l As String)
                 Next
             End If
             Dim As String bar
-            For k = 0 To 6
+            For k = 0 To NMENUS - 1
                 bar &= IIf(k, ", ", "") & AmpStrip(MenuTitles(k))
             Next
             RemoteSay "error: there's no menu called """ & sTitle & """. The menus are: " & bar & "." & HelpFor(sItem)

@@ -18,8 +18,10 @@ End Type
 
 Dim Shared S As Surf       ' where drawing goes now
 
-' The Windows 98 "Windows Standard" scheme
-Const C_FACE = &hFFC0C0C0
+' The Windows 2000 scheme, in grey-teal
+Const TEAL_DARK = &hFF005058            ' RGB(0, 80, 88)
+Const TEAL_LIGHT = &hFF78AAB4           ' RGB(120, 170, 180)
+Const C_FACE = &hFFD4D0C8
 Const C_LIGHT = &hFFDFDFDF
 Const C_HILITE = &hFFFFFFFF
 Const C_SHADOW = &hFF808080
@@ -27,12 +29,12 @@ Const C_DARK = &hFF000000
 Const C_WINDOW = &hFFFFFFFF
 Const C_TEXT = &hFF000000
 Const C_GRAYTEXT = &hFF808080
-Const C_SEL = &hFF000080
+Const C_SEL = &hFF005058
 Const C_SELTEXT = &hFFFFFFFF
-Const C_TITLE1 = &hFF000080
-Const C_TITLE2 = &hFF1084D0
-Const C_TITLEI1 = &hFF808080
-Const C_TITLEI2 = &hFFB5B5B5
+Const C_TITLE1 = &hFF005058
+Const C_TITLE2 = &hFF78AAB4
+Const C_TITLEI1 = &hFF808078
+Const C_TITLEI2 = &hFFC0C4C0
 Const C_APPWORK = &hFF808080
 Const C_INFO = &hFFFFFFE1
 

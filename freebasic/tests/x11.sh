@@ -1,15 +1,15 @@
 #!/bin/bash
 # Real X11 run: the app in Xvfb, driven by xdotool, screenshots with xwd.
-# Usage: podman run --rm -v "$PWD":/w:Z -w /w sc98-fb-x86 bash tests/x11.sh
-export HOME=/w/tests/home DISPLAY=:7
+# Usage: podman run --rm -v "$PWD/..":/r:Z -w /r/freebasic sc98-fb-x86 bash tests/x11.sh
+export HOME=$PWD/tests/home DISPLAY=:7
 mkdir -p $HOME/Documents tests/out
 Xvfb :7 -screen 0 1024x768x24 >/dev/null 2>&1 &
 sleep 1.5
-./build/sc98 "tests/Mounting Plate.sc98" > tests/out/x11.log 2>&1 &
+./build/sc2000 "../samples/Mounting Plate.sc98" > tests/out/x11.log 2>&1 &
 APP=$!
 sleep 2
 shot() { xwd -root -silent | convert xwd:- -crop 800x600+0+0 +repage "tests/out/$1.png"; }
-W=$(xdotool search --name "SolidCraft 98" | head -1)
+W=$(xdotool search --name "SolidCraft 2000" | head -1)
 xdotool windowmove $W 0 0; xdotool windowfocus $W; sleep 0.5
 OX=$(xdotool getwindowgeometry $W | sed -n 's/.*Position: \([0-9]*\),\([0-9]*\).*/\1/p'); OY=$(xdotool getwindowgeometry $W | sed -n 's/.*Position: [0-9]*,\([0-9]*\).*/\1/p')
 echo "window $W at $OX,$OY"
