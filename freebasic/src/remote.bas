@@ -252,6 +252,9 @@ Function DescribeDialog(ByVal d As TDlg Ptr, ByVal isTop As Boolean) As String
                 If ListCount = 0 Then r &= "    (empty)" & Chr(10)
             Case CT_CUSTOM
                 If Len(.text) Then r &= "  button [" & .text & "]" & foc & Chr(10): AddTarget .text, cx, cy
+            Case CT_RADIO
+                r &= "  option [" & AmpStrip(.text) & "]" & IIf(.checked, " (chosen)", "") & Chr(10)
+                AddTarget .text, ox + .x + 20 + TextW(AmpStrip(.text)) \ 2, cy
             End Select
         End With
     Next
@@ -330,7 +333,7 @@ Function TutorLine() As String
         Dim As Boolean hasEdit, hasCustom
         For i = 0 To d->nCtl - 1
             If d->c(i).kind = CT_EDIT And Not d->c(i).hidden Then hasEdit = True
-            If d->c(i).kind = CT_CUSTOM Or d->c(i).kind = CT_LIST Then hasCustom = True
+            If d->c(i).kind = CT_CUSTOM Or d->c(i).kind = CT_LIST Or d->c(i).kind = CT_RADIO Then hasCustom = True
         Next
         If hasEdit Then
             t = "This dialog wants numbers. "
