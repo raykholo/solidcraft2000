@@ -19,6 +19,10 @@ Now with fillets.
    writes an .stl file for a 3D printer. (Can't see it? File, Show
    all items. The menus hide what you haven't used yet.)
 
+Service Pack 1 (1.1): chamfers (M), hole patterns and bolt circles
+(the Hole dialog), fillets on the sides you pick and on the bottom,
+Undo and Redo (Ctrl+Z, Ctrl+Y), sketches on the sides of a box.
+
 It blue-screens every 15 minutes or so. Press any key: nothing is
 lost. Help, Install Stability Pack stops it.
 

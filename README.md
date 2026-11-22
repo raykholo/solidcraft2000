@@ -37,12 +37,12 @@ and by brett19, who asked that it blue-screen every 15 minutes or so. It does.
 ## Getting it
 
 Download it from the [latest release](https://github.com/raykholo/solidcraft2000/releases/latest):
-`SolidCraft2000-1.0.zip`. Unzip it anywhere and run `SolidCraft2000.exe`. One
+`SolidCraft2000-1.1.zip`. Unzip it anywhere and run `SolidCraft2000.exe`. One
 EXE, nothing to install, like SolidCraft 98. It runs on Windows 10 and 11. The
 EXE isn't signed, so Windows may say it "protected your PC": choose More info,
 then Run anyway.
 
-The release also has `SolidCraft2000-1.0-floppy.img`, the whole thing on one
+The release also has `SolidCraft2000-1.1-floppy.img`, the whole thing on one
 1.44 MB floppy disk, and `SHA256SUMS.txt`. Every build on the
 [Actions tab](https://github.com/raykholo/solidcraft2000/actions) keeps its EXE
 too (artifact `exe`), for the newest one between releases.
@@ -52,8 +52,8 @@ Like SolidCraft 98, it still fits on one floppy, packed with UPX.
 ## New in Service Pack 1
 
 SolidCraft 2000 Service Pack 1 is the "SolidCraft XP, maybe" list from the
-[roadmap](ROADMAP.md), one item at a time. Not released yet: the newest build
-is on the [Actions tab](https://github.com/raykholo/solidcraft2000/actions).
+[roadmap](ROADMAP.md), all of it, released as 1.1 the day after 1.0. As was
+the custom.
 
 ### Chamfers
 
