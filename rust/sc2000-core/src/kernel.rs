@@ -283,7 +283,8 @@ impl Part {
                             }
                             if m > 0 {
                                 for j in 0..base.len() {
-                                    if seam[j] {
+                                    // (a sharp corner's points are all in one place: one line)
+                                    if seam[j] && !(j > 0 && base[j] == base[j - 1]) {
                                         seg(
                                             [last[j][0], last[j][1], rings[m - 1].z],
                                             [q[j][0], q[j][1], ring.z],

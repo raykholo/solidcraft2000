@@ -58,14 +58,14 @@ impl<'a> Reader<'a> {
         Ok(b[..end].iter().map(|&b| char::from(b)).collect())
     }
 }
-fn text(out: &mut Vec<u8>, s: &str, n: usize) {
+fn text(out: &mut Vec<u8>, s: &str, n: usize, empty: u8) {
     let start = out.len();
     out.extend(
         s.chars()
             .take(n)
             .map(|c| u8::try_from(c as u32).unwrap_or(b'?')),
     );
-    out.resize(start + n, if s.is_empty() { 0 } else { b' ' });
+    out.resize(start + n, if s.is_empty() { empty } else { b' ' });
 }
 impl Part {
     /// Load a SolidCraft 98 part, versions 3–5; trailing Turbo preview bytes are
@@ -172,20 +172,23 @@ impl Part {
     }
     fn save(&self, magic: &[u8; 4], version: i16) -> Vec<u8> {
         let mut out = Vec::with_capacity(FILE_BYTES);
+        // Visual Basic's fixed-length strings are space-padded even when empty;
+        // the FreeBASIC edition's SolidCraft 98 parts NUL-fill an empty one.
+        let empty = if magic == b"SC2K" { b' ' } else { 0 };
         out.extend(magic);
         out.extend(version.to_le_bytes());
-        text(&mut out, &self.title, 64);
+        text(&mut out, &self.title, 64, empty);
         out.extend((self.count as i16).to_le_bytes());
         for f in &self.records {
             out.extend(f.kind.code().to_le_bytes());
-            text(&mut out, &f.name, 24);
+            text(&mut out, &f.name, 24, empty);
             for n in [f.x, f.y, f.z, f.p1, f.p2] {
                 out.extend(n.to_le_bytes());
             }
             out.extend(f.reference.to_le_bytes());
             out.extend(f.suppressed.to_le_bytes());
             out.extend(f.p3.to_le_bytes());
-            text(&mut out, &f.info, 32);
+            text(&mut out, &f.info, 32, empty);
             for n in f.reserved {
                 out.extend(n.to_le_bytes());
             }

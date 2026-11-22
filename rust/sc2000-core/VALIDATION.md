@@ -1,3 +1,8 @@
+Note for SolidCraft 2000 1.2: what follows is the validation of the SolidCraft 98 Embedded
+Edition this one began as, kept as it was (crate names there are the old ones' successors).
+Fillets, chamfers and `.sc2` files came after it and have no FreeBASIC reference to match;
+`tests/fillet.rs` checks them (closed meshes, volumes, fit rules, round trips, the sample).
+
 Validation on 2026-11-12, rustc 1.90.0 (x86_64 Linux).
 
 1. Done: Part, feature list, rectangle/circle sketches, extrude, Y revolve,
