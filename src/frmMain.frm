@@ -117,23 +117,29 @@ Begin VB.MDIForm frmMain
    Begin VB.Menu mnuEdit
       Caption         =   "&Edit"
       Begin VB.Menu mnuEditItem
-         Caption         =   "&Undo Last Feature"
+         Caption         =   "&Undo"
          Index           =   0
          Shortcut        =   ^Z
          Tag             =   "Undo"
       End
       Begin VB.Menu mnuEditItem
-         Caption         =   "-"
+         Caption         =   "&Redo"
          Index           =   1
+         Shortcut        =   ^Y
+         Tag             =   "Redo"
+      End
+      Begin VB.Menu mnuEditItem
+         Caption         =   "-"
+         Index           =   2
       End
       Begin VB.Menu mnuEditItem
          Caption         =   "&Edit Feature..."
-         Index           =   2
+         Index           =   3
          Tag             =   "Edit"
       End
       Begin VB.Menu mnuEditItem
          Caption         =   "&Delete Feature"
-         Index           =   3
+         Index           =   4
          Shortcut        =   {DEL}
          Tag             =   "Delete"
       End
@@ -343,7 +349,7 @@ Private Sub MDIForm_Load()
     mnuViewItem(0).Caption = "&Isometric" & vbTab & "I"
     mnuViewItem(1).Caption = "Zoom to &Fit" & vbTab & "F"
     mnuViewItem(3).Caption = "&Shaded" & vbTab & "S"
-    mnuEditItem(2).Caption = "&Edit Feature..." & vbTab & "Enter"
+    mnuEditItem(3).Caption = "&Edit Feature..." & vbTab & "Enter"
     ' Personalized Menus: short until you ask for the rest
     mnuFileItem(10).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
     mnuFeatureItem(5).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)

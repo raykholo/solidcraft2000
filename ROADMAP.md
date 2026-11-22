@@ -8,9 +8,9 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
   edge flanges, bend relief, flat pattern to DXF) as a slot for a real
   engine; Personalized Menus; the Upgrade Wizard; a blue screen every 15
   minutes or so, and the Stability Pack.
-- **Service Pack 1:** chamfers, at 45 degrees, on the top edges of an
-  extrude; hole patterns, a row or a bolt circle; fillets and chamfers on
-  chosen sides of the top, and on the bottom.
+- **Service Pack 1:** chamfers, at 45 degrees; hole patterns, a row or a
+  bolt circle; fillets and chamfers on chosen sides of the top, and on the
+  bottom; a real undo and redo history, twenty levels deep.
 
 ## Wanted
 
@@ -21,4 +21,3 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 
 - Fillets from SolidCraft designs, when they round whole top edges.
 - Sketches on side faces.
-- A real undo and redo history.

@@ -540,12 +540,14 @@ Private Sub FoldUnfold(p As frmPart)
     Next j
     If j <= Docs(d).Count Then
         If Docs(d).Features(j).Suppressed = 0 Then
+            HistoryRemember d, Docs(d), "Fold " & FeatureName(Docs(d), b)
             Docs(d).Features(j).Suppressed = 1
             DocDirty(d) = True
             p.RefreshAll False
             frmMain.SetStatus "Folded."
             Exit Sub
         End If
+        HistoryRemember d, Docs(d), "Unfold " & FeatureName(Docs(d), b)
         Docs(d).Features(j).Suppressed = 0
     Else
         f.Kind = FK_SM_FLAT
