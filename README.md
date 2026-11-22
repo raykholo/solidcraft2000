@@ -49,6 +49,29 @@ too (artifact `exe`), for the newest one between releases.
 
 Like SolidCraft 98, it still fits on one floppy, packed with UPX.
 
+## New in Service Pack 1
+
+SolidCraft 2000 Service Pack 1 is the "SolidCraft XP, maybe" list from the
+[roadmap](ROADMAP.md), one item at a time. Not released yet: the newest build
+is on the [Actions tab](https://github.com/raykholo/solidcraft2000/actions).
+
+### Chamfers
+
+**Features > Chamfer** (M, or the button next to Fillet) cuts every top edge
+of an extrude off at 45 degrees: the one picked in the tree or the timeline,
+or the last one. Type the distance.
+
+![A block with its top edges chamfered and a hole in the top](docs/screenshots/chamfer.png)
+
+- It works like a fillet: parametric, in the wireframe, the shaded view and
+  the STL, and holes keep clear of the slope.
+- An extrude gets a fillet or a chamfer, not both. Chamfer something that's
+  filleted and SolidCraft 2000 says so.
+- 45 degrees only. Other angles, SolidCraft XP.
+- A part with a chamfer is saved as version 7. SolidCraft 2000 1.0 won't open
+  it, and asks for Service Pack 1, which it was always going to do. Parts
+  without one still open in 1.0.
+
 ## New in 2000
 
 ### Fillets
@@ -67,8 +90,8 @@ one. Type the radius. That's it.
 - Holes keep clear of it: the Hole dialog won't put one in the rounded edge,
   and a fillet too big for the holes already there says which hole is in the
   way.
-- One fillet per extrude, on all its top edges at once. Choosing edges is
-  coming in SolidCraft XP. A rectangle's Corner radius still rounds the four
+- One fillet per extrude (or a chamfer), on all its top edges at once.
+  Choosing edges is coming in SolidCraft XP. A rectangle's Corner radius still rounds the four
   upright edges.
 
 Cal, the caliper assistant, has learned a second thing: "It looks like you're
@@ -164,7 +187,8 @@ corner, and a boss with a bore. About five minutes.
 ## What it can't do yet
 
 - Sketches are rectangles and circles, flat, facing up. Holes go straight down
-  from a top face. Fillets go on all the top edges of an extrude, or none.
+  from a top face. Fillets and chamfers go on all the top edges of an
+  extrude, or none.
 - No booleans to speak of: a body standing wholly on another's top face is
   joined to it in an STL; anything else stays separate (slicers merge them).
 - Sheet metal is the reference engine: see its limits in
@@ -178,7 +202,7 @@ corner, and a boss with a bore. About five minutes.
 | Ctrl+N / Ctrl+O / Ctrl+S | New, Open, Save |
 | Ctrl+Z | Undo last feature |
 | R, C | Sketch rectangle, sketch circle |
-| E, V, H, L | Extrude, Revolve, Hole, Fillet |
+| E, V, H, L, M | Extrude, Revolve, Hole, Fillet, Chamfer |
 | I, F | Isometric view, Zoom to fit |
 | S | Shaded (again for wireframe) |
 | Enter, or double-click | Edit the selected feature |
@@ -213,8 +237,8 @@ drawn at startup. New in 2000:
 
 | File | What it does |
 |---|---|
-| `modKernel.bas` | Fillets: `InsetSketch`, `FilletOf`, `TopFace`, and the rounded wireframe |
-| `modMesh.bas` | Fillets in the solid: rings of the outline moved in, up the quarter circle |
+| `modKernel.bas` | Fillets and chamfers: `InsetSketch`, `EdgeAt`, `FilletOf`, `TopFace`, and the rounded wireframe |
+| `modMesh.bas` | Fillets and chamfers in the solid: rings of the outline moved in, up the quarter circle or the slope |
 | `modSheetMetal.bas` | Sheet metal: the slot and its reference engine |
 | `frmBendTable.frm` | The Bend Table Wizard |
 | `modAdaptive.bas` | Personalized Menus |

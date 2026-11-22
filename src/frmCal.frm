@@ -85,7 +85,7 @@ Private Sub Form_Load()
 End Sub
 
 ' Shows Cal near the bottom right of the main window. sTopic is "box" or
-' "fillet", and picks the tip and the buttons.
+' "fillet" or "chamfer", and picks the tip and the buttons.
 Public Sub Pop(ByVal sSay As String, Optional ByVal sTopic As String = "box")
     If Silenced Or InStr(mShown, "|" & sTopic & "|") > 0 Then Exit Sub
     mShown = mShown & "|" & sTopic & "|"
@@ -96,6 +96,9 @@ Public Sub Pop(ByVal sSay As String, Optional ByVal sTopic As String = "box")
     If sTopic = "fillet" Then
         cmdHelp.Caption = "&Get help with rounding the edge"
         cmdNoHelp.Caption = "&Just round it without help"
+    ElseIf sTopic = "chamfer" Then
+        cmdHelp.Caption = "&Get help with taking the corner off"
+        cmdNoHelp.Caption = "&Just take it off without help"
     Else
         cmdHelp.Caption = "&Get help with drawing the box"
         cmdNoHelp.Caption = "&Just draw the box without help"
@@ -111,6 +114,9 @@ Private Sub cmdHelp_Click()
     If mTopic = "fillet" Then
         lblSay.Caption = "Here's a tip: a fillet rounds every top edge of an extrude at once." & vbCrLf & _
             "Picking which edges is coming in SolidCraft XP."
+    ElseIf mTopic = "chamfer" Then
+        lblSay.Caption = "Here's a tip: a chamfer cuts every top edge of an extrude at 45 degrees." & vbCrLf & _
+            "Other angles are coming in SolidCraft XP. So is that fillet you wanted."
     Else
         lblSay.Caption = "Here's a tip: boxes usually want to be extruded." & vbCrLf & _
             "Press E. If that doesn't work, press E harder."

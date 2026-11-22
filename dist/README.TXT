@@ -9,7 +9,8 @@ Now with fillets.
    see it upgraded, or one of the .solidcraft designs, made in
    SolidCraft itself.
 3. Or make your own: R sketches a rectangle, C a circle, E extrudes,
-   V revolves, H drills a hole, L rounds the top edges (new!).
+   V revolves, H drills a hole, L rounds the top edges (new!), M
+   chamfers them (Service Pack 1).
    Double-click a feature to change it, Del deletes it. Drag in the
    view to orbit.
 4. Sheet Metal, Base Flange starts a sheet metal part from a

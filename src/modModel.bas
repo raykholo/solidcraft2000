@@ -6,7 +6,8 @@ Attribute VB_Name = "modModel"
 Option Explicit
 
 Public Const FILE_MAGIC As String = "SC2K"
-Public Const FILE_VERSION As Integer = 6
+Public Const FILE_VERSION As Integer = 7     ' 7: chamfers (Service Pack 1). Parts without one are still saved as 6
+Private Const FILE_VERSION_NO_CHAMFER As Integer = 6
 Public Const FILE_MAGIC_98 As String = "SC98"   ' SolidCraft 98 parts: read, upgraded, never written
 Public Const MAX_FEATURES As Integer = 64    ' someone once had 41 features
 
@@ -19,6 +20,7 @@ Public Const FK_EXTRUDE As Integer = 3
 Public Const FK_REVOLVE As Integer = 4
 Public Const FK_HOLE As Integer = 5
 Public Const FK_FILLET As Integer = 6      ' NEW IN 2000: rounds the top edges of an extrude
+Public Const FK_CHAMFER As Integer = 7     ' Service Pack 1: bevels them, at 45 degrees
 Public Const FK_FOREIGN As Integer = 9     ' from a SolidCraft design, and not something SolidCraft 2000 can build
 
 Public Type TFeature
@@ -27,7 +29,7 @@ Public Type TFeature
     X As Double            ' sketch origin / hole centre, mm
     Y As Double
     Z As Double            ' sketch plane height, mm
-    P1 As Double           ' width | radius | depth | angle | diameter | fillet radius
+    P1 As Double           ' width | radius | depth | angle | diameter | fillet radius | chamfer distance
     P2 As Double           ' height | - | - | - | hole depth (0 = through all) | -
     Ref As Integer         ' the feature this one is built on
     Suppressed As Integer
@@ -112,6 +114,7 @@ Public Function KindName(ByVal k As Integer) As String
     Case FK_REVOLVE: KindName = "Revolve"
     Case FK_HOLE: KindName = "Hole"
     Case FK_FILLET: KindName = "Fillet"
+    Case FK_CHAMFER: KindName = "Chamfer"
     Case FK_FOREIGN: KindName = "SolidCraft"
     Case Else
         KindName = SM_KindName(k)
@@ -126,12 +129,19 @@ Public Function KindPrefix(ByVal k As Integer) As String
     Case FK_REVOLVE: KindPrefix = "Revolve"
     Case FK_HOLE: KindPrefix = "Hole"
     Case FK_FILLET: KindPrefix = "Fillet"
+    Case FK_CHAMFER: KindPrefix = "Chamfer"
     Case Else: KindPrefix = SM_KindPrefix(k)
     End Select
 End Function
 
 Public Function IsSketch(ByVal k As Integer) As Boolean
     IsSketch = (k = FK_SKETCH_RECT Or k = FK_SKETCH_CIRCLE)
+End Function
+
+' A fillet or a chamfer: something that finishes the top edges of an extrude.
+' An extrude gets one of them, not both.
+Public Function IsEdgeFinish(ByVal k As Integer) As Boolean
+    IsEdgeFinish = (k = FK_FILLET Or k = FK_CHAMFER)
 End Function
 
 ' Adds a feature and gives it a name like "Extrude2". Returns its index, 0 if full.
@@ -234,6 +244,8 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
         Describe = FeatureName(d, f.Ref) & ", " & Fmt(f.P1) & Chr$(176) & " about Y"
     Case FK_FILLET
         Describe = "R " & Fmt(f.P1) & " mm, top edges of " & FeatureName(d, f.Ref)
+    Case FK_CHAMFER
+        Describe = Fmt(f.P1) & " mm x 45" & Chr$(176) & ", top edges of " & FeatureName(d, f.Ref)
     Case FK_FOREIGN
         Describe = "From SolidCraft. Not in SolidCraft 2000."
     Case FK_HOLE
@@ -273,7 +285,7 @@ Public Function SaveDesign(d As TDesign, ByVal sPath As String) As Boolean
     Dim fh As Integer, sStep As String, bOpen As Boolean
     On Error GoTo Failed
     d.Magic = FILE_MAGIC
-    d.Version = FILE_VERSION
+    d.Version = SaveVersion(d)
     sStep = "replacing the old file"
     If FileExists(sPath) Then Kill sPath
     sStep = "creating the file"
@@ -294,6 +306,17 @@ Failed:
         On Error Resume Next
         Close #fh
     End If
+End Function
+
+' The oldest version that can hold this part, so a part without a chamfer
+' still opens in SolidCraft 2000 1.0. One with a chamfer tells 1.0 to get
+' Service Pack 1, which is the truth.
+Private Function SaveVersion(d As TDesign) As Integer
+    Dim i As Integer
+    SaveVersion = FILE_VERSION_NO_CHAMFER
+    For i = 1 To d.Count
+        If d.Features(i).Kind = FK_CHAMFER Then SaveVersion = FILE_VERSION
+    Next i
 End Function
 
 ' A SolidCraft 98 part has the same features in the same record, so upgrading
