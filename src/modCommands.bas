@@ -440,7 +440,7 @@ End Sub
 ' numbers make sense.
 Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As Boolean
     Dim sTitle As String, s As TFeature, b As TFeature, k As Integer, inset As TFeature
-    Dim sWord As String, sWhole As String
+    Dim sWord As String, sWhole As String, sSides As String, sNow As String, mt As Integer, mb As Integer
     Dim g As TFeature, m As Integer, q As Integer, x1 As Double, y1 As Double, x2 As Double, y2 As Double
     If i = 0 Then sTitle = "" Else sTitle = "Edit " & FeatureName(d, i) & ": "
     Select Case f.Kind
@@ -503,34 +503,47 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
     Case FK_FILLET, FK_CHAMFER
         b = d.Features(f.Ref)
         s = d.Features(b.Ref)
+        ' Service Pack 1: which sides of the top and the bottom, added up
+        sSides = "Top sides (15 = all)|Bottom sides (0 = none)"
+        sNow = "|" & FinishTop(f) & "|" & FinishBottom(f)
         If f.Kind = FK_CHAMFER Then
-            sWord = "distance": sWhole = "A chamfer that big would cut the whole top away."
-            If Not frmParams.Ask(sTitle & "Chamfer the top edges of " & FeatureName(d, f.Ref) & ", at 45" & Chr$(176), "Distance (mm)", Fmt0(f.P1)) Then Exit Function
+            sWord = "distance": sWhole = "A chamfer that big would cut a whole face away."
+            If Not frmParams.Ask(sTitle & "Chamfer the edges of " & FeatureName(d, f.Ref) & ", at 45" & Chr$(176), "Distance (mm)|" & sSides, Fmt0(f.P1) & sNow) Then Exit Function
         Else
-            sWord = "radius": sWhole = "A fillet that big would round the whole top away."
-            If Not frmParams.Ask(sTitle & "Fillet the top edges of " & FeatureName(d, f.Ref), "Radius (mm)", Fmt0(f.P1)) Then Exit Function
+            sWord = "radius": sWhole = "A fillet that big would round a whole face away."
+            If Not frmParams.Ask(sTitle & "Fillet the edges of " & FeatureName(d, f.Ref), "Radius (mm)|" & sSides, Fmt0(f.P1) & sNow) Then Exit Function
         End If
         If frmParams.Value(0) <= 0 Then
             MsgBox "The " & sWord & " must be more than zero.", vbExclamation, App.Title
+            Exit Function
+        End If
+        mt = CInt(frmParams.Value(1)): mb = CInt(frmParams.Value(2))
+        If mt <> frmParams.Value(1) Or mb <> frmParams.Value(2) Or mt < 0 Or mt > SIDES_ALL Or mb < 0 Or mb > SIDES_ALL Or mt + mb = 0 Then
+            MsgBox "Add up the sides you want: 1 front, 2 right, 4 back, 8 left." & vbCrLf & _
+                "15 is all four, 0 is none. Back and left is 12." & vbCrLf & vbCrLf & _
+                "(In 2000 this was considered user-friendly.)", vbInformation, App.Title
+            Exit Function
+        End If
+        If Not SidesOk(s, mt) Or Not SidesOk(s, mb) Then
+            MsgBox IIf(s.Kind = FK_SKETCH_CIRCLE, "A circle has one edge at the top and one at the bottom.", _
+                "A rectangle with rounded corners goes round in one piece.") & vbCrLf & _
+                "Its sides are all or nothing: 15 or 0.", vbExclamation, App.Title
+            Exit Function
+        End If
+        If IIf(mt > 0, 1, 0) + IIf(mb > 0, 1, 0) > 1 And 2 * frmParams.Value(0) > Abs(b.P1) + 0.000001 Then
+            MsgBox "Top and bottom both: the " & sWord & " can be at most half of " & FeatureName(d, f.Ref) & "'s height (" & Fmt0(Abs(b.P1) / 2) & " mm).", vbExclamation, App.Title
             Exit Function
         End If
         If frmParams.Value(0) > Abs(b.P1) + 0.000001 Then
             MsgBox "That " & sWord & " is bigger than " & FeatureName(d, f.Ref) & " is tall (" & Fmt0(Abs(b.P1)) & " mm).", vbExclamation, App.Title
             Exit Function
         End If
-        If s.Kind = FK_SKETCH_RECT Then
-            If 2 * frmParams.Value(0) >= Min2(s.P1, s.P2) - 0.000001 Then
-                MsgBox sWhole & vbCrLf & _
-                    "Keep the " & sWord & " under half the shorter side (" & Fmt0(Min2(s.P1, s.P2) / 2) & " mm).", vbExclamation, App.Title
-                Exit Function
-            End If
-        ElseIf frmParams.Value(0) >= s.P1 - 0.000001 Then
-            MsgBox sWhole & vbCrLf & _
-                "Keep the " & sWord & " under the circle's radius (" & Fmt0(s.P1) & " mm).", vbExclamation, App.Title
+        If Not SidesFit(s, mt, frmParams.Value(0)) Or Not SidesFit(s, mb, frmParams.Value(0)) Then
+            MsgBox sWhole & vbCrLf & "Try a smaller " & sWord & ", or fewer sides.", vbExclamation, App.Title
             Exit Function
         End If
         ' the holes in the top have to stay clear of the rounded edge
-        inset = InsetSketch(s, frmParams.Value(0))
+        inset = SideInset(s, mt, frmParams.Value(0))
         For k = 1 To d.Count
             If k <> i And d.Features(k).Kind = FK_HOLE And d.Features(k).Ref = f.Ref And d.Features(k).Suppressed = 0 Then
                 If Not HolesInside(inset, d.Features(k)) Then
@@ -541,6 +554,8 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
             End If
         Next k
         f.P1 = frmParams.Value(0)
+        f.Reserved(1) = SIDES_ALL - mt         ' the top sides left sharp: 0 is all of them rounded
+        f.Reserved(2) = mb
 
     Case FK_SM_BASE, FK_SM_EDGE, FK_SM_FLAT
         If Not SM_Ask(d, i, f) Then Exit Function
@@ -548,8 +563,8 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
     Case FK_FOREIGN
         If InStr(LCase$(f.Info), "fillet") > 0 Then
             MsgBox RTrim$(f.Name) & " is a fillet from SolidCraft, which rounds the edges it was given, one by one." & vbCrLf & vbCrLf & _
-                "SolidCraft 2000 rounds all the top edges of an extrude or none of them." & vbCrLf & _
-                "Choosing edges requires SolidCraft XP. (Features, Fillet rounds them all.)", vbInformation, App.Title
+                "SolidCraft 2000 rounds whole sides of an extrude's top and bottom, and these aren't that." & vbCrLf & _
+                "The rest requires SolidCraft XP. (Features, Fillet rounds the sides you add up.)", vbInformation, App.Title
         Else
             MsgBox RTrim$(f.Name) & " is a " & LCase$(RTrim$(f.Info)) & " from SolidCraft." & vbCrLf & vbCrLf & _
                 "Requires SolidCraft XP.", vbInformation, App.Title

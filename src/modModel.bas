@@ -243,10 +243,9 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
         Describe = FeatureName(d, f.Ref) & ", " & Fmt(f.P1) & " mm"
     Case FK_REVOLVE
         Describe = FeatureName(d, f.Ref) & ", " & Fmt(f.P1) & Chr$(176) & " about Y"
-    Case FK_FILLET
-        Describe = "R " & Fmt(f.P1) & " mm, top edges of " & FeatureName(d, f.Ref)
-    Case FK_CHAMFER
-        Describe = Fmt(f.P1) & " mm x 45" & Chr$(176) & ", top edges of " & FeatureName(d, f.Ref)
+    Case FK_FILLET, FK_CHAMFER
+        If f.Kind = FK_FILLET Then Describe = "R " & Fmt(f.P1) & " mm, " Else Describe = Fmt(f.P1) & " mm x 45" & Chr$(176) & ", "
+        Describe = Describe & EdgesText(f) & " of " & FeatureName(d, f.Ref)
     Case FK_FOREIGN
         Describe = "From SolidCraft. Not in SolidCraft 2000."
     Case FK_HOLE
@@ -268,6 +267,15 @@ Public Function Describe(d As TDesign, ByVal i As Integer) As String
     Case Else
         If SM_IsSheetMetal(f.Kind) Then Describe = SM_Describe(d, i)
     End Select
+End Function
+
+' "top edges", "top front and back edges, bottom edges": what a fillet takes.
+Private Function EdgesText(f As TFeature) As String
+    Dim mt As Integer, mb As Integer
+    mt = FinishTop(f): mb = FinishBottom(f)
+    If mt > 0 Then EdgesText = "top" & SidesText(mt) & " edges"
+    If mt > 0 And mb > 0 Then EdgesText = EdgesText & ", "
+    If mb > 0 Then EdgesText = EdgesText & "bottom" & SidesText(mb) & " edges"
 End Function
 
 '  ", on Extrude1" / ", on Extrude1 +2" / ", Z 5" / "" for where a sketch sits.
@@ -319,14 +327,16 @@ Failed:
 End Function
 
 ' The oldest version that can hold this part, so a part without anything
-' from Service Pack 1 still opens in SolidCraft 2000 1.0. One with a chamfer
-' or a hole pattern tells 1.0 to get Service Pack 1, which is the truth.
+' from Service Pack 1 still opens in SolidCraft 2000 1.0. One with a chamfer,
+' a hole pattern or a fillet on chosen edges tells 1.0 to get Service Pack 1,
+' which is the truth.
 Private Function SaveVersion(d As TDesign) As Integer
     Dim i As Integer
     SaveVersion = FILE_VERSION_1_0
     For i = 1 To d.Count
         If d.Features(i).Kind = FK_CHAMFER Then SaveVersion = FILE_VERSION
         If d.Features(i).Kind = FK_HOLE And d.Features(i).P3 >= 2 Then SaveVersion = FILE_VERSION
+        If IsEdgeFinish(d.Features(i).Kind) And (d.Features(i).Reserved(1) <> 0 Or d.Features(i).Reserved(2) <> 0) Then SaveVersion = FILE_VERSION
     Next i
 End Function
 

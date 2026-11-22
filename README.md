@@ -85,9 +85,26 @@ circle diameter they go round the centre, evenly, the first one at Angle.
   rule it broke.
 - Up to 36 holes in one pattern. Thirty-six ought to be enough for anybody.
 
+### Chosen edges
+
+The Fillet and Chamfer dialogs have two more boxes: **Top sides** and
+**Bottom sides**. Add up the sides you want: 1 front, 2 right, 4 back, 8 left.
+15 is all four (the default, at the top), 0 is none (the default, at the
+bottom). Front and back is 5. In 2000 this was considered user-friendly.
+
+![A block with the front and back of its top rounded, and all of its bottom](docs/screenshots/edges.png)
+
+- A sharp-cornered rectangle takes any sides. A circle, or a rectangle with
+  rounded corners, is all or nothing (15 or 0), because its edge goes round
+  in one piece.
+- Top and bottom both: the radius can be at most half the height.
+- Holes keep clear of the top fillet, and of the bottom one if they come
+  out through it.
+
 ### Service Pack 1 parts
 
-A part with a chamfer or a hole pattern is saved as version 7. SolidCraft
+A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as
+version 7. SolidCraft
 2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
 to do. Parts without them still open in 1.0.
 
@@ -109,8 +126,8 @@ one. Type the radius. That's it.
 - Holes keep clear of it: the Hole dialog won't put one in the rounded edge,
   and a fillet too big for the holes already there says which hole is in the
   way.
-- One fillet per extrude (or a chamfer), on all its top edges at once.
-  Choosing edges is coming in SolidCraft XP. A rectangle's Corner radius still rounds the four
+- One fillet per extrude (or a chamfer). Service Pack 1 lets it choose its
+  edges: see [Chosen edges](#chosen-edges). A rectangle's Corner radius still rounds the four
   upright edges.
 
 Cal, the caliper assistant, has learned a second thing: "It looks like you're
@@ -208,7 +225,8 @@ corner, and a boss with a bore. About five minutes.
 
 - Sketches are rectangles and circles, flat, facing up. Holes go straight down
   from a top face, one at a time, in a row or round a circle. Fillets and
-  chamfers go on all the top edges of an extrude, or none.
+  chamfers go on whole sides of an extrude's top and bottom, not on its
+  upright edges (a rectangle's Corner radius does those).
 - No booleans to speak of: a body standing wholly on another's top face is
   joined to it in an STL; anything else stays separate (slicers merge them).
 - Sheet metal is the reference engine: see its limits in
