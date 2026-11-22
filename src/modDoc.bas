@@ -22,6 +22,7 @@ Public Function NewDocSlot() As Integer
             DocPath(i) = ""
             DocDirty(i) = False
             DocInUse(i) = True
+            HistoryClear i
             NewDocSlot = i
             Exit Function
         End If

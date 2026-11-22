@@ -25,6 +25,7 @@ Module=modModel; modModel.bas
 Module=modKernel; modKernel.bas
 Module=modView; modView.bas
 Module=modDoc; modDoc.bas
+Module=modHistory; modHistory.bas
 Module=modIcons; modIcons.bas
 Module=modArt; modArt.bas
 Module=modBars; modBars.bas

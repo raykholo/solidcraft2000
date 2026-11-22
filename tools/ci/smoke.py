@@ -93,6 +93,13 @@ say("key s")
 say("wait 1500")
 shot("fillet")
 say("look")
+# undo takes the hole off, redo puts it back
+say("key ctrl+z")
+if "| Hole1 |" in say("look"):
+    problems.append("ctrl+z didn't take Hole1 off")
+say("key ctrl+y")
+if "| Hole1 |" not in say("look"):
+    problems.append("ctrl+y didn't put Hole1 back")
 
 # chosen edges: the front and back of the top rounded, and the whole bottom
 say("key ctrl+n")

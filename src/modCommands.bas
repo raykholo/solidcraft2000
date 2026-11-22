@@ -27,6 +27,7 @@ Public Sub RunCommand(ByVal sCmd As String)
     Case "Chamfer": CmdEdgeFinish FK_CHAMFER
     Case "SMBase", "SMEdge", "SMFlat", "BendTable": SM_Command sCmd
     Case "Undo": CmdUndo
+    Case "Redo": CmdRedo
     Case "Edit": CmdEdit
     Case "Delete": CmdDelete
 
@@ -248,8 +249,10 @@ Public Function CommitFeature(p As frmPart, f As TFeature) As Boolean
 End Function
 
 Private Function Commit(p As frmPart, f As TFeature) As Boolean
-    Dim i As Integer
+    Dim i As Integer, before As TDesign
+    before = Docs(p.DocIndex)
     i = AddFeature(Docs(p.DocIndex), f)
+    If i > 0 Then HistoryRemember p.DocIndex, before, "Add " & FeatureName(Docs(p.DocIndex), i)
     If i = 0 Then
         MsgBox "Subscript out of range." & vbCrLf & vbCrLf & _
             "A part can have " & MAX_FEATURES & " features. Nobody will ever need more.", vbCritical, App.Title
@@ -384,6 +387,7 @@ Public Sub EditFeature(p As frmPart, ByVal i As Integer)
     If i < 1 Or i > Docs(slot).Count Then Exit Sub
     f = Docs(slot).Features(i)
     If Not AskFeature(Docs(slot), i, f) Then Exit Sub
+    HistoryRemember slot, Docs(slot), "Edit " & FeatureName(Docs(slot), i)
     Docs(slot).Features(i) = f
     DocDirty(slot) = True
     p.RefreshAll False
@@ -429,6 +433,7 @@ Private Sub CmdDelete()
             "Delete all " & n & " features?", vbExclamation Or vbYesNo Or vbDefaultButton2, App.Title) = vbNo Then Exit Sub
     End If
     sList = FeatureName(Docs(slot), i)
+    HistoryRemember slot, Docs(slot), "Delete " & sList
     DeleteMarked Docs(slot), gone
     DocDirty(slot) = True
     p.RefreshAll False
@@ -692,21 +697,31 @@ Private Function OneSideOfY(s As TFeature) As Boolean
     End If
 End Function
 
+' Service Pack 1: a real history, twenty levels deep (modHistory).
 Private Sub CmdUndo()
-    Dim p As frmPart, slot As Integer, i As Integer
+    Dim p As frmPart, sWhat As String
     If Not NeedPart(p) Then Exit Sub
-    slot = p.DocIndex
-    i = Docs(slot).Count
-    If i = 0 Then
-        Status "Nothing to undo."
+    sWhat = HistoryUndo(p.DocIndex)
+    If Len(sWhat) = 0 Then
+        Status "Can't Undo."
         Exit Sub
     End If
-    ' Features only ever build on earlier ones, so the last one is always safe to drop.
-    Status "Removed " & FeatureName(Docs(slot), i) & "."
-    Docs(slot).Features(i).Kind = FK_NONE
-    Docs(slot).Count = i - 1
-    DocDirty(slot) = True
+    DocDirty(p.DocIndex) = True
     p.RefreshAll False
+    Status "Undone: " & sWhat & "." & IIf(CanUndo(p.DocIndex), "", " That was the last thing to undo.")
+End Sub
+
+Private Sub CmdRedo()
+    Dim p As frmPart, sWhat As String
+    If Not NeedPart(p) Then Exit Sub
+    sWhat = HistoryRedo(p.DocIndex)
+    If Len(sWhat) = 0 Then
+        Status "Can't Redo."
+        Exit Sub
+    End If
+    DocDirty(p.DocIndex) = True
+    p.RefreshAll False
+    Status "Redone: " & sWhat & "."
 End Sub
 
 Private Sub CmdHelp()

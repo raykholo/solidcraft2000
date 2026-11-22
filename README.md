@@ -108,6 +108,14 @@ version 7. SolidCraft
 2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
 to do. Parts without them still open in 1.0.
 
+### Undo and Redo
+
+**Edit > Undo** (Ctrl+Z) takes back the last change, whatever it was: a new
+feature, an edit, a delete, a fold or an unfold. **Edit > Redo** (Ctrl+Y) does
+it again. Twenty levels for each part, like Office 2000. The status bar says
+what was undone, and "Can't Undo." when there's nothing left. (1.0's Undo
+only ever took off the last feature.)
+
 ## New in 2000
 
 ### Fillets
@@ -238,7 +246,7 @@ corner, and a boss with a bore. About five minutes.
 | Key | Command |
 |---|---|
 | Ctrl+N / Ctrl+O / Ctrl+S | New, Open, Save |
-| Ctrl+Z | Undo last feature |
+| Ctrl+Z / Ctrl+Y | Undo, Redo |
 | R, C | Sketch rectangle, sketch circle |
 | E, V, H, L, M | Extrude, Revolve, Hole, Fillet, Chamfer |
 | I, F | Isometric view, Zoom to fit |
