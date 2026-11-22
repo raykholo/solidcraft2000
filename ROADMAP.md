@@ -9,7 +9,8 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
   engine; Personalized Menus; the Upgrade Wizard; a blue screen every 15
   minutes or so, and the Stability Pack.
 - **Service Pack 1:** chamfers, at 45 degrees, on the top edges of an
-  extrude; hole patterns, a row or a bolt circle.
+  extrude; hole patterns, a row or a bolt circle; fillets and chamfers on
+  chosen sides of the top, and on the bottom.
 
 ## Wanted
 
@@ -18,7 +19,6 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 
 ## SolidCraft XP, maybe
 
-- Fillets on chosen edges, and on the bottom edges.
 - Fillets from SolidCraft designs, when they round whole top edges.
 - Sketches on side faces.
 - A real undo and redo history.

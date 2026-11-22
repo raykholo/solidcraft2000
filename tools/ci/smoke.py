@@ -94,6 +94,18 @@ say("wait 1500")
 shot("fillet")
 say("look")
 
+# chosen edges: the front and back of the top rounded, and the whole bottom
+say("key ctrl+n")
+say("key r"); say("key enter")
+say("key e"); say("key enter")
+say("menu Features > Fillet...")
+say("key tab"); say("type 5"); say("key tab"); say("type 15"); say("key enter")
+say("wait 1500")
+shot("edges")
+t = say("look")
+if "top front and back edges, bottom edges" not in t or "Rebuild error" in t:
+    problems.append("the fillet on chosen edges didn't build: " + t.splitlines()[0])
+
 # a block, its top edges chamfered, a hole in the top, in a new part
 say("key ctrl+n")
 say("key r"); say("key enter")

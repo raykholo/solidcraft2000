@@ -268,10 +268,71 @@ Public Function InsetSketch(s As TFeature, ByVal off As Double) As TFeature
     InsetSketch = t
 End Function
 
-' Does fillet j fit its extrude? Its radius must leave some top face, and
-' can't be more than the extrude is tall.
+' ---- Chosen edges (Service Pack 1) ----
+'
+' A fillet or chamfer takes whole sides of an extrude's top and bottom:
+' bits 1 front (-Y), 2 right (+X), 4 back (+Y), 8 left (-X), added up.
+' Reserved(1) is the top sides it leaves sharp (so 0, in every part from
+' before Service Pack 1, is all of them) and Reserved(2) the bottom sides it
+' takes. A circle, or a rectangle with rounded corners, is all or nothing:
+' 15 or 0. Moving in only some sides of a sharp rectangle leaves a
+' rectangle, so every cross-section is still exact.
+
+Public Const SIDES_ALL As Integer = 15
+
+Public Function FinishTop(f As TFeature) As Integer
+    FinishTop = SIDES_ALL - (CInt(f.Reserved(1)) And SIDES_ALL)
+End Function
+
+Public Function FinishBottom(f As TFeature) As Integer
+    FinishBottom = CInt(f.Reserved(2)) And SIDES_ALL
+End Function
+
+' The sketch s, moved in by off on the sides in mask.
+Public Function SideInset(s As TFeature, ByVal mask As Integer, ByVal off As Double) As TFeature
+    Dim t As TFeature
+    If mask = 0 Or off = 0 Then
+        SideInset = s
+    ElseIf mask = SIDES_ALL Or s.Kind <> FK_SKETCH_RECT Or s.P3 > 0 Then
+        SideInset = InsetSketch(s, off)
+    Else
+        t = s
+        If mask And 1 Then t.Y = t.Y + off: t.P2 = t.P2 - off
+        If mask And 2 Then t.P1 = t.P1 - off
+        If mask And 4 Then t.P2 = t.P2 - off
+        If mask And 8 Then t.X = t.X + off: t.P1 = t.P1 - off
+        SideInset = t
+    End If
+End Function
+
+' Can sketch s take these sides? A circle or a rounded rectangle, all or none.
+Public Function SidesOk(s As TFeature, ByVal mask As Integer) As Boolean
+    If mask < 0 Or mask > SIDES_ALL Then Exit Function
+    If s.Kind = FK_SKETCH_RECT And s.P3 <= 0 Then
+        SidesOk = True
+    Else
+        SidesOk = (mask = 0 Or mask = SIDES_ALL)
+    End If
+End Function
+
+' Is r small enough for these sides of s? Something of the face has to stay.
+Public Function SidesFit(s As TFeature, ByVal mask As Integer, ByVal r As Double) As Boolean
+    Const EPS As Double = 0.000001
+    Dim nx As Integer, ny As Integer
+    If mask = 0 Then SidesFit = True: Exit Function
+    If s.Kind = FK_SKETCH_CIRCLE Then SidesFit = (s.P1 > r + EPS): Exit Function
+    If mask And 2 Then nx = nx + 1
+    If mask And 8 Then nx = nx + 1
+    If mask And 1 Then ny = ny + 1
+    If mask And 4 Then ny = ny + 1
+    If s.P3 > 0 Then nx = 2: ny = 2
+    SidesFit = (s.P1 > nx * r + EPS) And (s.P2 > ny * r + EPS)
+End Function
+
+' Does fillet j fit its extrude? Its radius must leave some of each face it
+' rounds, and fit in the extrude's height (twice, if it rounds both ends).
 Public Function FilletFits(d As TDesign, ByVal j As Integer) As Boolean
-    Dim f As TFeature, s As TFeature, b As Integer
+    Dim f As TFeature, s As TFeature, b As Integer, mt As Integer, mb As Integer, n As Integer
     Const EPS As Double = 0.000001
     f = d.Features(j)
     b = f.Ref
@@ -279,15 +340,77 @@ Public Function FilletFits(d As TDesign, ByVal j As Integer) As Boolean
     If d.Features(b).Kind <> FK_EXTRUDE Then Exit Function
     If d.Features(b).Ref < 1 Or d.Features(b).Ref >= b Then Exit Function
     s = d.Features(d.Features(b).Ref)
-    If f.P1 <= 0 Or f.P1 > Abs(d.Features(b).P1) + EPS Then Exit Function
-    If s.Kind = FK_SKETCH_RECT Then
-        If s.P1 <= 2 * f.P1 + EPS Or s.P2 <= 2 * f.P1 + EPS Then Exit Function
-    ElseIf s.Kind = FK_SKETCH_CIRCLE Then
-        If s.P1 <= f.P1 + EPS Then Exit Function
-    Else
-        Exit Function
-    End If
+    If s.Kind <> FK_SKETCH_RECT And s.Kind <> FK_SKETCH_CIRCLE Then Exit Function
+    mt = FinishTop(f): mb = FinishBottom(f)
+    If mt = 0 And mb = 0 Then Exit Function
+    If Not SidesOk(s, mt) Or Not SidesOk(s, mb) Then Exit Function
+    If mt <> 0 Then n = n + 1
+    If mb <> 0 Then n = n + 1
+    If f.P1 <= 0 Or n * f.P1 > Abs(d.Features(b).P1) + EPS Then Exit Function
+    If Not SidesFit(s, mt, f.P1) Or Not SidesFit(s, mb, f.P1) Then Exit Function
     FilletFits = True
+End Function
+
+' "", " front and back", " front, right and left": which sides, for Describe.
+Public Function SidesText(ByVal mask As Integer) As String
+    Dim w(0 To 3) As String, n As Integer, k As Integer, nm As Variant
+    If mask = SIDES_ALL Or mask = 0 Then Exit Function
+    nm = Array("front", "right", "back", "left")
+    For k = 0 To 3
+        If mask And (2 ^ k) Then w(n) = nm(k): n = n + 1
+    Next k
+    For k = 0 To n - 1
+        If k = 0 Then
+            SidesText = " " & w(k)
+        ElseIf k = n - 1 Then
+            SidesText = SidesText & " and " & w(k)
+        Else
+            SidesText = SidesText & ", " & w(k)
+        End If
+    Next k
+End Function
+
+' The cross-sections an extrude's walls go through, bottom to top: up the
+' bottom fillet, the straight part, up the top fillet. rz() the heights,
+' rs() the outlines (each a sketch), key() where the wireframe draws a ring.
+' Every outline gives ProfilePoints the same number of points.
+Public Function ExtrudeRings(d As TDesign, ByVal b As Integer, ByVal steps As Integer, _
+                             rz() As Double, rs() As TFeature, key() As Boolean) As Integer
+    Dim s As TFeature, j As Integer, z0 As Double, z1 As Double, r As Double, m As Integer, n As Integer
+    Dim mt As Integer, mb As Integer, bCh As Boolean, inset As Double, rise As Double, st As Integer
+    s = d.Features(d.Features(b).Ref)
+    ExtrudeRange d, b, z0, z1
+    j = FilletOf(d, b)
+    If j > 0 Then
+        r = d.Features(j).P1: mt = FinishTop(d.Features(j)): mb = FinishBottom(d.Features(j))
+        bCh = (d.Features(j).Kind = FK_CHAMFER)
+    End If
+    st = EdgeSteps(bCh, steps)
+    ReDim rz(0 To 2 * st + 2): ReDim rs(0 To 2 * st + 2): ReDim key(0 To 2 * st + 2)
+    If mb <> 0 Then
+        For m = st To 1 Step -1                 ' from the bottom face up to the straight sides
+            EdgeAt bCh, r, m / st, inset, rise
+            If m = st Then inset = r: rise = r
+            rz(n) = z0 + r - rise: rs(n) = SideInset(s, mb, inset): key(n) = (m = st)
+            n = n + 1
+        Next m
+        rz(n) = z0 + r
+    Else
+        rz(n) = z0
+    End If
+    rs(n) = s: key(n) = True: n = n + 1
+    If mt <> 0 Then
+        rz(n) = z1 - r: rs(n) = s: key(n) = True: n = n + 1
+        For m = 1 To st
+            EdgeAt bCh, r, m / st, inset, rise
+            If m = st Then inset = r: rise = r   ' exactly the top's edge
+            rz(n) = z1 - r + rise: rs(n) = SideInset(s, mt, inset): key(n) = (m = st)
+            n = n + 1
+        Next m
+    Else
+        rz(n) = z1: rs(n) = s: key(n) = True: n = n + 1
+    End If
+    ExtrudeRings = n
 End Function
 
 ' The fillet or chamfer on extrude b, or 0. Only the first one that fits counts.
@@ -312,9 +435,18 @@ End Function
 ' The flat part of extrude b's top face, as a sketch: its own sketch, moved
 ' in by its fillet. Holes and anything standing on it have to fit in here.
 Public Function TopFace(d As TDesign, ByVal b As Integer) As TFeature
-    Dim s As TFeature
+    Dim s As TFeature, j As Integer
     s = d.Features(d.Features(b).Ref)
-    TopFace = InsetSketch(s, FilletRadius(d, b))
+    j = FilletOf(d, b)
+    If j = 0 Then TopFace = s Else TopFace = SideInset(s, FinishTop(d.Features(j)), d.Features(j).P1)
+End Function
+
+' The flat part of its bottom face, the same way.
+Public Function BottomFace(d As TDesign, ByVal b As Integer) As TFeature
+    Dim s As TFeature, j As Integer
+    s = d.Features(d.Features(b).Ref)
+    j = FilletOf(d, b)
+    If j = 0 Then BottomFace = s Else BottomFace = SideInset(s, FinishBottom(d.Features(j)), d.Features(j).P1)
 End Function
 
 ' Turns the design into edges. Returns the edge count.
@@ -327,7 +459,7 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     Dim used() As Boolean, fr As Double, zf As Double, m As Integer
     Dim qx() As Double, qy() As Double, qseam() As Boolean, ox() As Double, oy() As Double
     Dim bCh As Boolean, nst As Integer, in0 As Double, up0 As Double, in1 As Double, up1 As Double
-    Dim hx As Double, hy As Double
+    Dim hx As Double, hy As Double, rz() As Double, rs() As TFeature, rkey() As Boolean
 
     ReDim e(0 To 255)
     If d.Count > 0 Then ReDim used(1 To d.Count) Else ReDim used(0 To 0)
@@ -365,34 +497,26 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
                         If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), z1, COL_SOLID
                     Next j
                 Else
-                    ' straight sides up to where the fillet starts, then the
-                    ' quarter circles (or the chamfer's slopes) at each seam,
-                    ' and the smaller top
-                    bCh = IsChamfered(d, i)
-                    nst = EdgeSteps(bCh, FILLET_STEPS)
-                    zf = z1 - fr
+                    ' the rings it goes through (bottom fillet, straight sides,
+                    ' top fillet): a ring where a face starts or ends, and the
+                    ' quarter circles (or the chamfer's slopes) at each seam
+                    nst = ExtrudeRings(d, i, FILLET_STEPS, rz, rs, rkey)
                     np = ProfilePoints(s, px, py, seam, CIRCLE_SEGS, True)
-                    For j = 0 To np - 1
-                        k = (j + 1) Mod np
-                        AddEdge e, n, px(j), py(j), z0, px(k), py(k), z0, COL_SOLID
-                        AddEdge e, n, px(j), py(j), zf, px(k), py(k), zf, COL_SOLID
-                        If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), zf, COL_SOLID
-                    Next j
-                    ox = px: oy = py
-                    For m = 1 To nst
-                        EdgeAt bCh, fr, (m - 1) / nst, in0, up0
-                        EdgeAt bCh, fr, m / nst, in1, up1
-                        b = InsetSketch(s, in1)
-                        ProfilePoints b, qx, qy, qseam, CIRCLE_SEGS, True
-                        For j = 0 To np - 1
-                            If seam(j) Then AddEdge e, n, ox(j), oy(j), zf + up0, qx(j), qy(j), zf + up1, COL_SOLID
-                        Next j
+                    For m = 0 To nst - 1
+                        ProfilePoints rs(m), qx, qy, qseam, CIRCLE_SEGS, True
+                        If rkey(m) Then
+                            For j = 0 To np - 1
+                                k = (j + 1) Mod np
+                                AddEdge e, n, qx(j), qy(j), rz(m), qx(k), qy(k), rz(m), COL_SOLID
+                            Next j
+                        End If
+                        If m > 0 Then
+                            For j = 0 To np - 1
+                                If seam(j) Then AddEdge e, n, ox(j), oy(j), rz(m - 1), qx(j), qy(j), rz(m), COL_SOLID
+                            Next j
+                        End If
                         ox = qx: oy = qy
                     Next m
-                    For j = 0 To np - 1
-                        k = (j + 1) Mod np
-                        AddEdge e, n, ox(j), oy(j), z1, ox(k), oy(k), z1, COL_SOLID
-                    Next j
                 End If
 
             Case FK_REVOLVE
@@ -446,7 +570,7 @@ End Function
 
 ' A feature is only drawn if what it is built on exists and comes before it.
 Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
-    Dim f As TFeature, tf As TFeature
+    Dim f As TFeature, tf As TFeature, zt As Double, zb As Double, z0 As Double, z1 As Double
     f = d.Features(i)
     Select Case f.Kind
     Case FK_SKETCH_RECT, FK_SKETCH_CIRCLE
@@ -473,6 +597,14 @@ Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
                 If RefOk(d, f.Ref) Then
                     tf = TopFace(d, f.Ref)
                     RefOk = HolesInside(tf, f)
+                    ' one that comes out through a filleted bottom has to miss the fillet too
+                    If RefOk And FilletOf(d, f.Ref) > 0 Then
+                        If FinishBottom(d.Features(FilletOf(d, f.Ref))) <> 0 Then
+                            HoleSpan d, i, zt, zb
+                            ExtrudeRange d, f.Ref, z0, z1
+                            If zb < z0 + d.Features(FilletOf(d, f.Ref)).P1 Then RefOk = HolesInside(BottomFace(d, f.Ref), f)
+                        End If
+                    End If
                 End If
             End If
         End If

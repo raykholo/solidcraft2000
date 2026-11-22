@@ -136,15 +136,18 @@ End Sub
 
 ' ---- extrudes ----
 
-' Bottom and top of extrude i, bottom first, and its outline, anticlockwise.
-' False if it is flat or has no outline.
+' Bottom and top of extrude i, bottom first, and the outline of its bottom
+' face (its sketch, less any bottom fillet), anticlockwise. False if it is
+' flat or has no outline.
 Private Function GetBody(d As TDesign, ByVal i As Integer, z0 As Double, z1 As Double, _
                       ox() As Double, oy() As Double, no As Long) As Boolean
     Dim seam() As Boolean, t As Double
     ExtrudeRange d, i, z0, z1
     If z1 < z0 Then t = z0: z0 = z1: z1 = t
     If z1 - z0 < EPS Then Exit Function
-    no = ProfilePoints(d.Features(d.Features(i).Ref), ox, oy, seam, mSegs)
+    Dim bf As TFeature
+    bf = BottomFace(d, i)
+    no = ProfilePoints(bf, ox, oy, seam, mSegs, True)
     no = CleanOutline(ox, oy, no)
     GetBody = (no >= 3)
 End Function
@@ -312,29 +315,17 @@ End Sub
 ' corner is a corner of radius 0, all its points in one place), and the
 ' slivers between points in the same place have no area and are left out.
 Private Sub FilletWalls(d As TDesign, ByVal i As Integer, ByVal z0 As Double, ByVal z1 As Double, ByVal fr As Double)
-    Dim s As TFeature, tf As TFeature, seam() As Boolean
+    Dim s As TFeature, seam() As Boolean, rz() As Double, rs() As TFeature, rkey() As Boolean
     Dim ax() As Double, ay() As Double, bx() As Double, by() As Double
-    Dim n As Long, k As Long, k2 As Long, m As Integer, steps As Integer
-    Dim za As Double, zb As Double, zf As Double, bCh As Boolean, inset As Double, rise As Double
-    s = d.Features(d.Features(i).Ref)
-    zf = z1 - fr
-    n = ProfilePoints(s, ax, ay, seam, mSegs, True)
-    RingBand ax, ay, z0, ax, ay, zf, n, i
-    bCh = IsChamfered(d, i)
-    steps = EdgeSteps(bCh, mSegs \ 4)
-    za = zf
-    For m = 1 To steps
-        If m = steps Then
-            tf = InsetSketch(s, fr)              ' exactly the top's edge
-            zb = z1
-        Else
-            EdgeAt bCh, fr, m / steps, inset, rise
-            tf = InsetSketch(s, inset)
-            zb = zf + rise
-        End If
-        ProfilePoints tf, bx, by, seam, mSegs, True
-        RingBand ax, ay, za, bx, by, zb, n, i
-        ax = bx: ay = by: za = zb
+    Dim n As Long, m As Integer, nr As Integer
+    ' Service Pack 1: up a bottom fillet, the straight sides, up a top fillet,
+    ' each only on the sides it takes (modKernel's ExtrudeRings)
+    nr = ExtrudeRings(d, i, mSegs \ 4, rz, rs, rkey)
+    n = ProfilePoints(rs(0), ax, ay, seam, mSegs, True)
+    For m = 1 To nr - 1
+        ProfilePoints rs(m), bx, by, seam, mSegs, True
+        RingBand ax, ay, rz(m - 1), bx, by, rz(m), n, i
+        ax = bx: ay = by
     Next m
 End Sub
 

@@ -112,8 +112,8 @@ End Sub
 
 Private Sub cmdHelp_Click()
     If mTopic = "fillet" Then
-        lblSay.Caption = "Here's a tip: a fillet rounds every top edge of an extrude at once." & vbCrLf & _
-            "Picking which edges is coming in SolidCraft XP."
+        lblSay.Caption = "Here's a tip: a fillet rounds the top edges of an extrude, or the ones you pick." & vbCrLf & _
+            "Add them up: 1 front, 2 right, 4 back, 8 left. It's 2000."
     ElseIf mTopic = "chamfer" Then
         lblSay.Caption = "Here's a tip: a chamfer cuts every top edge of an extrude at 45 degrees." & vbCrLf & _
             "Other angles are coming in SolidCraft XP. So is that fillet you wanted."
