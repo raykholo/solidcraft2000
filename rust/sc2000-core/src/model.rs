@@ -278,6 +278,24 @@ impl Part {
                     format!("{} mm deep", fmt_number(f.p2, 2))
                 }
             ),
+            FeatureKind::Fillet | FeatureKind::Chamfer => {
+                let (top, bottom) = (f.finish_top(), f.finish_bottom());
+                let mut edges = String::new();
+                if top != 0 {
+                    edges = format!("top{} edges", sides_text(top));
+                }
+                if top != 0 && bottom != 0 {
+                    edges += ", ";
+                }
+                if bottom != 0 {
+                    edges += &format!("bottom{} edges", sides_text(bottom));
+                }
+                if f.kind == FeatureKind::Fillet {
+                    format!("R {p} mm, {edges} of {parent}")
+                } else {
+                    format!("{p} mm x 45°, {edges} of {parent}")
+                }
+            }
             FeatureKind::Foreign => "From SolidCraft. Not in SolidCraft 2000.".into(),
             _ => String::new(),
         })
