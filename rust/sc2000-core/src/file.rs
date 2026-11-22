@@ -189,8 +189,9 @@ impl Part {
             out.extend(f.suppressed.to_le_bytes());
             out.extend(f.p3.to_le_bytes());
             text(&mut out, &f.info, 32, empty);
+            // SolidCraft 98 zeroes them on every save; SolidCraft 2000 keeps them.
             for n in f.reserved {
-                out.extend(n.to_le_bytes());
+                out.extend(if magic == b"SC2K" { n } else { 0.0 }.to_le_bytes());
             }
         }
         out

@@ -263,7 +263,7 @@ fn box_stl_normals_colours_and_translation() {
         assert!((length - 1.0).abs() < 1e-6);
     }
     let bytes = m.to_stl(&p.title).unwrap();
-    assert_eq!(&bytes[..35], b"Binary STL from SolidCraft 2000: Box,");
+    assert_eq!(&bytes[..37], b"Binary STL from SolidCraft 2000: Box,");
     assert_eq!(bytes.len(), 84 + 50 * 12);
     assert_eq!(u32::from_le_bytes(bytes[80..84].try_into().unwrap()), 12);
     for record in bytes[84..].as_chunks::<50>().0 {
