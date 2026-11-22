@@ -607,6 +607,8 @@ Private Function PictureReadOut(f As Form) As String
         PictureReadOut = "A picture of Cal, the caliper assistant."
     Case "frmSplash"
         PictureReadOut = "The SolidCraft 2000 splash screen."
+    Case "frmModem"
+        PictureReadOut = "A picture: two computers and the telephone line between them. The modem is making the noise."
     End Select
 End Function
 

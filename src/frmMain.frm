@@ -283,6 +283,11 @@ Begin VB.MDIForm frmMain
          Tag             =   "Help"
       End
       Begin VB.Menu mnuHelpItem
+         Caption         =   "Check &Online for Help..."
+         Index           =   5
+         Tag             =   "CheckOnline"
+      End
+      Begin VB.Menu mnuHelpItem
          Caption         =   "&Upgrade from SolidCraft 98..."
          Index           =   3
          Tag             =   "Upgrade"

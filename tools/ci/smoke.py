@@ -208,6 +208,18 @@ say("look")
 say("key escape")
 say("key enter")
 
+# Check Online for Help: dials, then hang up before it gets anywhere (no browser on a CI runner)
+say("menu Help > Check Online for Help...")
+say("wait 4500")
+shot("checkonline")
+t = say("look")
+if "Verifying user name and password" not in t and "Logging on to network" not in t:
+    problems.append("Check Online for Help didn't get past dialing")
+say("click Cancel")
+say("wait 500")
+if "Connect To SolidCraft Online" in say("look"):
+    problems.append("Cancel didn't hang up")
+
 try:
     say("quit")
 except SystemExit:
