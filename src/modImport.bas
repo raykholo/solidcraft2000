@@ -5,8 +5,8 @@ Attribute VB_Name = "modImport"
 ' history (a plain-JSON design works too). We read that history and rebuild
 ' what SolidCraft 2000 can build: flat sketches of rectangles (rounded or not)
 ' and circles, extrudes, revolves about the sketch's Y axis, straight-down
-' holes, and (Service Pack 1) fillets and chamfers that take all the top edges
-' of one extrude. Everything else stays in the timeline as "Requires SolidCraft 2000",
+' holes, and (Service Pack 1) fillets and chamfers that take whole sides of
+' one extrude's top and bottom. Everything else stays in the timeline as "Requires SolidCraft 2000",
 ' and the part opens with what's left.
 '
 ' A feature is brought over whole or not at all: if any part of it can't be
@@ -699,13 +699,14 @@ End Sub
 ' ---- fillets and chamfers (Service Pack 1) ----
 '
 ' SolidCraft names each edge by a point on it. SolidCraft 2000 rounds (or
-' bevels) every top edge of an extrude or none, so the feature comes over
-' when its points are all on one extrude's top outline and every side of that
-' outline has one. Anything else waits for SolidCraft XP.
+' bevels) whole sides of an extrude's top and bottom, so the feature comes
+' over when its points are all on one extrude's top or bottom outline: the
+' sides they're on are the sides it takes. Upright edges, or a circle's edge
+' taken in part, wait for SolidCraft XP.
 
 Private Sub ImportEdgeFinish(d As TDesign, ByVal f As Long, ByVal bChamfer As Boolean)
     Dim edges As Long, n As Long, k As Long, b As Integer, r As Double, ok As Boolean, sWhat As String
-    Dim px() As Double, py() As Double, pz() As Double, e As TFeature, j As Integer
+    Dim px() As Double, py() As Double, pz() As Double, e As TFeature, j As Integer, mt As Integer, mb As Integer
     sWhat = IIf(bChamfer, "Chamfer", "Fillet")
     If bChamfer Then
         If JGet(f, "distance2") > 0 Or JGet(f, "angle") > 0 Then Foreign d, f, sWhat, "not the same distance both ways": Exit Sub
@@ -730,10 +731,10 @@ Private Sub ImportEdgeFinish(d As TDesign, ByVal f As Long, ByVal bChamfer As Bo
     Next k
     For b = d.Count To 1 Step -1
         If d.Features(b).Kind = FK_EXTRUDE Then
-            If RefOk(d, b) And TakesTopEdges(d, b, px, py, pz, n) Then Exit For
+            If RefOk(d, b) And EdgeSides(d, b, px, py, pz, n, mt, mb) Then Exit For
         End If
     Next b
-    If b < 1 Then Foreign d, f, sWhat, "on edges other than all the top edges of one extrude": Exit Sub
+    If b < 1 Then Foreign d, f, sWhat, "on edges other than whole sides of one extrude's top or bottom": Exit Sub
     For j = b + 1 To d.Count
         If IsEdgeFinish(d.Features(j).Kind) And d.Features(j).Ref = b Then
             Foreign d, f, sWhat, "on an extrude that already has a fillet or chamfer": Exit Sub
@@ -742,6 +743,8 @@ Private Sub ImportEdgeFinish(d As TDesign, ByVal f As Long, ByVal bChamfer As Bo
     e.Kind = IIf(bChamfer, FK_CHAMFER, FK_FILLET)
     e.Ref = b
     e.P1 = r
+    e.Reserved(1) = SIDES_ALL - mt
+    e.Reserved(2) = mb
     j = AddRaw(d, e, JStr(JGet(f, "name")))
     If j = 0 Then Exit Sub
     If Not RefOk(d, j) Then
@@ -754,24 +757,29 @@ Private Sub ImportEdgeFinish(d As TDesign, ByVal f As Long, ByVal bChamfer As Bo
     End If
 End Sub
 
-' Are all the points on the top outline of extrude b, one or more on every side of it?
-Private Function TakesTopEdges(d As TDesign, ByVal b As Integer, px() As Double, py() As Double, pz() As Double, ByVal n As Long) As Boolean
-    Dim s As TFeature, z0 As Double, z1 As Double, k As Long, side As Integer, got(0 To 3) As Boolean
+' Are all the points on the top or bottom outline of extrude b? mt and mb
+' get the sides they're on (1 front, 2 right, 4 back, 8 left). A circle, or a
+' rectangle with rounded corners, goes round in one piece: any point on it
+' takes it all.
+Private Function EdgeSides(d As TDesign, ByVal b As Integer, px() As Double, py() As Double, pz() As Double, _
+                           ByVal n As Long, mt As Integer, mb As Integer) As Boolean
+    Dim s As TFeature, z0 As Double, z1 As Double, k As Long, side As Integer, bit As Integer
     s = d.Features(d.Features(b).Ref)
     ExtrudeRange d, b, z0, z1
+    mt = 0: mb = 0
     For k = 0 To n - 1
-        If Abs(pz(k) - z1) > EPS Then Exit Function
         side = OutlineSide(s, px(k), py(k))
         If side < -1 Then Exit Function          ' not on the outline at all
-        If side >= 0 Then got(side) = True        ' -1: on a rounded corner, which comes with its sides
+        If side = -1 Or s.Kind = FK_SKETCH_CIRCLE Or s.P3 > 0 Then bit = SIDES_ALL Else bit = 2 ^ side
+        If Abs(pz(k) - z1) < EPS Then
+            mt = mt Or bit
+        ElseIf Abs(pz(k) - z0) < EPS Then
+            mb = mb Or bit
+        Else
+            Exit Function                         ' an upright edge
+        End If
     Next k
-    If s.Kind = FK_SKETCH_CIRCLE Then
-        TakesTopEdges = True
-    Else
-        ' a side as long as the corners leave nothing of is no side
-        TakesTopEdges = (got(0) Or s.P1 - 2 * s.P3 < EPS) And (got(2) Or s.P1 - 2 * s.P3 < EPS) And _
-                        (got(1) Or s.P2 - 2 * s.P3 < EPS) And (got(3) Or s.P2 - 2 * s.P3 < EPS)
-    End If
+    EdgeSides = True
 End Function
 
 ' Which side of sketch s the point (x, y) is on: 0 front, 1 right, 2 back,
