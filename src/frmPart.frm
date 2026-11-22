@@ -312,6 +312,7 @@ Private Sub Form_KeyDown(KeyCode As Integer, Shift As Integer)
     Case vbKeyV: sCmd = "Revolve"
     Case vbKeyH: sCmd = "Hole"
     Case vbKeyL: sCmd = "Fillet"
+    Case vbKeyM: sCmd = "Chamfer"
     Case vbKeyI: sCmd = "ViewIso"
     Case vbKeyF: sCmd = "ZoomFit"
     Case vbKeyS: sCmd = "Shaded"

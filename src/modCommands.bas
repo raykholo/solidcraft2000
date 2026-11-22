@@ -23,7 +23,8 @@ Public Sub RunCommand(ByVal sCmd As String)
     Case "Extrude": CmdExtrude
     Case "Revolve": CmdRevolve
     Case "Hole": CmdHole
-    Case "Fillet": CmdFillet
+    Case "Fillet": CmdEdgeFinish FK_FILLET
+    Case "Chamfer": CmdEdgeFinish FK_CHAMFER
     Case "SMBase", "SMEdge", "SMFlat", "BendTable": SM_Command sCmd
     Case "Undo": CmdUndo
     Case "Edit": CmdEdit
@@ -260,6 +261,7 @@ Private Function Commit(p As frmPart, f As TFeature) As Boolean
     Commit = True
     If f.Kind = FK_SKETCH_RECT Then frmCal.Pop "It looks like you're drawing a box."
     If f.Kind = FK_FILLET Then frmCal.Pop "It looks like you're trying to round an edge!", "fillet"
+    If f.Kind = FK_CHAMFER Then frmCal.Pop "It looks like you're trying to take the corner off!", "chamfer"
 End Function
 
 Private Sub CmdSketchRect()
@@ -306,13 +308,13 @@ Private Sub CmdRevolve()
     If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
 End Sub
 
-' The extrude picked in the tree or timeline (a hole or a fillet counts as
-' its extrude), or 0.
+' The extrude picked in the tree or timeline (a hole, a fillet or a chamfer
+' counts as its extrude), or 0.
 Private Function SelectedExtrude(p As frmPart) As Integer
     Dim b As Integer
     b = p.SelectedFeature()
     If b = 0 Then Exit Function
-    If Docs(p.DocIndex).Features(b).Kind = FK_HOLE Or Docs(p.DocIndex).Features(b).Kind = FK_FILLET Then b = Docs(p.DocIndex).Features(b).Ref
+    If Docs(p.DocIndex).Features(b).Kind = FK_HOLE Or IsEdgeFinish(Docs(p.DocIndex).Features(b).Kind) Then b = Docs(p.DocIndex).Features(b).Ref
     If Docs(p.DocIndex).Features(b).Kind = FK_EXTRUDE Then SelectedExtrude = b
 End Function
 
@@ -334,22 +336,25 @@ Private Sub CmdHole()
     If AskFeature(Docs(p.DocIndex), 0, f) Then Commit p, f
 End Sub
 
-' NEW IN 2000. A fillet rounds the top edges of the selected extrude (a hole
-' or a fillet counts as its extrude), or of the last one.
-Private Sub CmdFillet()
+' NEW IN 2000. A fillet rounds the top edges of the selected extrude (a hole,
+' a fillet or a chamfer counts as its extrude), or of the last one. A chamfer
+' (Service Pack 1) bevels them instead. An extrude gets one or the other.
+Private Sub CmdEdgeFinish(ByVal nKind As Integer)
     Dim p As frmPart, f As TFeature, b As Integer, j As Integer, s As TFeature, m As Double
     If Not NeedPart(p) Then Exit Sub
     b = SelectedExtrude(p)
     If b = 0 Then b = LastSolid(Docs(p.DocIndex))
     If b = 0 Then
-        MsgBox "A fillet rounds the edges of an extrude." & vbCrLf & "Sketch something and extrude it first.", vbExclamation, App.Title
+        MsgBox "A " & LCase$(KindName(nKind)) & IIf(nKind = FK_CHAMFER, " bevels", " rounds") & " the edges of an extrude." & vbCrLf & _
+            "Sketch something and extrude it first.", vbExclamation, App.Title
         Exit Sub
     End If
     For j = b + 1 To Docs(p.DocIndex).Count
-        If Docs(p.DocIndex).Features(j).Kind = FK_FILLET And Docs(p.DocIndex).Features(j).Ref = b Then
-            MsgBox FeatureName(Docs(p.DocIndex), b) & " already has a fillet, " & FeatureName(Docs(p.DocIndex), j) & "." & vbCrLf & vbCrLf & _
-                "SolidCraft 2000 rounds an extrude once. Edit " & FeatureName(Docs(p.DocIndex), j) & " to change its radius." & vbCrLf & _
-                "(Fillets on fillets are planned for SolidCraft XP.)", vbInformation, App.Title
+        If IsEdgeFinish(Docs(p.DocIndex).Features(j).Kind) And Docs(p.DocIndex).Features(j).Ref = b Then
+            MsgBox FeatureName(Docs(p.DocIndex), b) & " already has a " & LCase$(KindName(Docs(p.DocIndex).Features(j).Kind)) & ", " & FeatureName(Docs(p.DocIndex), j) & "." & vbCrLf & vbCrLf & _
+                "SolidCraft 2000 finishes the top edges of an extrude once: a fillet or a chamfer." & vbCrLf & _
+                "Edit " & FeatureName(Docs(p.DocIndex), j) & " to change it, or delete it first." & vbCrLf & _
+                "(Fillets on chamfers are planned for SolidCraft XP.)", vbInformation, App.Title
             Exit Sub
         End If
     Next j
@@ -362,7 +367,7 @@ Private Sub CmdFillet()
     Else
         If s.P1 < m Then m = s.P1
     End If
-    f.Kind = FK_FILLET
+    f.Kind = nKind
     f.Ref = b
     f.P1 = 2
     If f.P1 > m / 2 Then f.P1 = Int(m / 2 * 10) / 10
@@ -433,6 +438,7 @@ End Sub
 ' numbers make sense.
 Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As Boolean
     Dim sTitle As String, s As TFeature, b As TFeature, k As Integer, inset As TFeature
+    Dim sWord As String, sWhole As String
     If i = 0 Then sTitle = "" Else sTitle = "Edit " & FeatureName(d, i) & ": "
     Select Case f.Kind
     Case FK_SKETCH_RECT
@@ -491,27 +497,33 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         End If
         f.P1 = frmParams.Value(0)
 
-    Case FK_FILLET
+    Case FK_FILLET, FK_CHAMFER
         b = d.Features(f.Ref)
         s = d.Features(b.Ref)
-        If Not frmParams.Ask(sTitle & "Fillet the top edges of " & FeatureName(d, f.Ref), "Radius (mm)", Fmt0(f.P1)) Then Exit Function
+        If f.Kind = FK_CHAMFER Then
+            sWord = "distance": sWhole = "A chamfer that big would cut the whole top away."
+            If Not frmParams.Ask(sTitle & "Chamfer the top edges of " & FeatureName(d, f.Ref) & ", at 45" & Chr$(176), "Distance (mm)", Fmt0(f.P1)) Then Exit Function
+        Else
+            sWord = "radius": sWhole = "A fillet that big would round the whole top away."
+            If Not frmParams.Ask(sTitle & "Fillet the top edges of " & FeatureName(d, f.Ref), "Radius (mm)", Fmt0(f.P1)) Then Exit Function
+        End If
         If frmParams.Value(0) <= 0 Then
-            MsgBox "The radius must be more than zero.", vbExclamation, App.Title
+            MsgBox "The " & sWord & " must be more than zero.", vbExclamation, App.Title
             Exit Function
         End If
         If frmParams.Value(0) > Abs(b.P1) + 0.000001 Then
-            MsgBox "That radius is bigger than " & FeatureName(d, f.Ref) & " is tall (" & Fmt0(Abs(b.P1)) & " mm).", vbExclamation, App.Title
+            MsgBox "That " & sWord & " is bigger than " & FeatureName(d, f.Ref) & " is tall (" & Fmt0(Abs(b.P1)) & " mm).", vbExclamation, App.Title
             Exit Function
         End If
         If s.Kind = FK_SKETCH_RECT Then
             If 2 * frmParams.Value(0) >= Min2(s.P1, s.P2) - 0.000001 Then
-                MsgBox "A fillet that big would round the whole top away." & vbCrLf & _
-                    "Keep the radius under half the shorter side (" & Fmt0(Min2(s.P1, s.P2) / 2) & " mm).", vbExclamation, App.Title
+                MsgBox sWhole & vbCrLf & _
+                    "Keep the " & sWord & " under half the shorter side (" & Fmt0(Min2(s.P1, s.P2) / 2) & " mm).", vbExclamation, App.Title
                 Exit Function
             End If
         ElseIf frmParams.Value(0) >= s.P1 - 0.000001 Then
-            MsgBox "A fillet that big would round the whole top away." & vbCrLf & _
-                "Keep the radius under the circle's radius (" & Fmt0(s.P1) & " mm).", vbExclamation, App.Title
+            MsgBox sWhole & vbCrLf & _
+                "Keep the " & sWord & " under the circle's radius (" & Fmt0(s.P1) & " mm).", vbExclamation, App.Title
             Exit Function
         End If
         ' the holes in the top have to stay clear of the rounded edge
@@ -519,8 +531,8 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         For k = 1 To d.Count
             If k <> i And d.Features(k).Kind = FK_HOLE And d.Features(k).Ref = f.Ref And d.Features(k).Suppressed = 0 Then
                 If Not ProfileContains(inset, d.Features(k).X, d.Features(k).Y, d.Features(k).P1 / 2) Then
-                    MsgBox FeatureName(d, k) & " is too close to the edge for a " & Fmt0(frmParams.Value(0)) & " mm fillet." & vbCrLf & _
-                        "Try a smaller radius, or move the hole in.", vbExclamation, App.Title
+                    MsgBox FeatureName(d, k) & " is too close to the edge for a " & Fmt0(frmParams.Value(0)) & " mm " & LCase$(KindName(f.Kind)) & "." & vbCrLf & _
+                        "Try a smaller " & sWord & ", or move the hole in.", vbExclamation, App.Title
                     Exit Function
                 End If
             End If
@@ -554,7 +566,7 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         s = TopFace(d, f.Ref)          ' less the fillet, if it has one
         If Not ProfileContains(s, frmParams.Value(2), frmParams.Value(3), frmParams.Value(0) / 2) Then
             MsgBox "That hole doesn't fit on the face. It would fall off the edge" & _
-                IIf(FilletOf(d, f.Ref) > 0, ", or into the fillet.", "."), vbExclamation, App.Title
+                IIf(FilletOf(d, f.Ref) > 0, ", or into the " & LCase$(KindName(d.Features(FilletOf(d, f.Ref)).Kind)) & ".", "."), vbExclamation, App.Title
             Exit Function
         End If
         If frmParams.Value(1) > b.P1 + 0.000001 Then

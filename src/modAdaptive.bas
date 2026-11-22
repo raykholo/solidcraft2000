@@ -10,7 +10,7 @@ Attribute VB_Name = "modAdaptive"
 Option Explicit
 
 ' what the short menus show before you've used anything
-Private Const SHOWN_AT_FIRST As String = "|New|Open|Save|Exit|Extrude|Hole|Fillet|ViewIso|ZoomFit|Regen|Shaded|"
+Private Const SHOWN_AT_FIRST As String = "|New|Open|Save|Exit|Extrude|Hole|Fillet|Chamfer|ViewIso|ZoomFit|Regen|Shaded|"
 
 Public Const MORE_TAG As String = "More"
 

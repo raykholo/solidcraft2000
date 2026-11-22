@@ -174,8 +174,13 @@ Begin VB.MDIForm frmMain
          Tag             =   "Fillet"
       End
       Begin VB.Menu mnuFeatureItem
-         Caption         =   "Show &all items"
+         Caption         =   "Cha&mfer..."
          Index           =   4
+         Tag             =   "Chamfer"
+      End
+      Begin VB.Menu mnuFeatureItem
+         Caption         =   "Show &all items"
+         Index           =   5
          Tag             =   "More"
       End
    End
@@ -334,13 +339,14 @@ Private Sub MDIForm_Load()
     mnuFeatureItem(1).Caption = "Re&volve..." & vbTab & "V"
     mnuFeatureItem(2).Caption = "&Hole..." & vbTab & "H"
     mnuFeatureItem(3).Caption = "Fi&llet... (New!)" & vbTab & "L"
+    mnuFeatureItem(4).Caption = "Cha&mfer... (SP1)" & vbTab & "M"
     mnuViewItem(0).Caption = "&Isometric" & vbTab & "I"
     mnuViewItem(1).Caption = "Zoom to &Fit" & vbTab & "F"
     mnuViewItem(3).Caption = "&Shaded" & vbTab & "S"
     mnuEditItem(2).Caption = "&Edit Feature..." & vbTab & "Enter"
     ' Personalized Menus: short until you ask for the rest
     mnuFileItem(10).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
-    mnuFeatureItem(4).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
+    mnuFeatureItem(5).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
     mnuViewItem(6).Caption = "Show all items" & vbTab & Chr$(187) & Chr$(187)
     Personalize
     StabilityChanged
@@ -365,6 +371,7 @@ Private Sub BuildToolbar()
     ToolbarAdd "Revolve", "Revolve (V)"
     ToolbarAdd "Hole", "Hole (H)"
     ToolbarAdd "Fillet", "Fillet (L). New in SolidCraft 2000!"
+    ToolbarAdd "Chamfer", "Chamfer (M). New in Service Pack 1!"
     ToolbarAdd "", ""
     ToolbarAdd "Orbit", "Isometric View (I). Drag in the viewport to orbit."
     ToolbarAdd "Shaded", "Shaded (S). Rendered in software, properly."

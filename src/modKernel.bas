@@ -181,6 +181,35 @@ End Sub
 ' Every outline SolidCraft 2000 can sketch is convex, so moving it in is
 ' exact: a rectangle gets smaller and its corner radius goes down (to a sharp
 ' corner if need be), a circle's radius goes down.
+'
+' A chamfer (Service Pack 1) is the same with a straight line for the quarter
+' circle: at t of the way up it is moved in by P1 * t, at top - P1 + P1 * t.
+' Everything below calls both a fillet: one per extrude, and P1 is how far in
+' the top's edge is.
+
+' How far in (inset) and how far up from where it starts (rise) the edge
+' finish is, t of the way along it (0 to 1). r is its radius or distance.
+Public Sub EdgeAt(ByVal bChamfer As Boolean, ByVal r As Double, ByVal t As Double, inset As Double, rise As Double)
+    If bChamfer Then
+        inset = r * t
+        rise = r * t
+    Else
+        inset = r * (1 - Cos(t * PI / 2))
+        rise = r * Sin(t * PI / 2)
+    End If
+End Sub
+
+' How many bands it takes: a chamfer is flat, so one.
+Public Function EdgeSteps(ByVal bChamfer As Boolean, ByVal nFillet As Integer) As Integer
+    If bChamfer Then EdgeSteps = 1 Else EdgeSteps = nFillet
+End Function
+
+' Is extrude b's edge finish a chamfer?
+Public Function IsChamfered(d As TDesign, ByVal b As Integer) As Boolean
+    Dim j As Integer
+    j = FilletOf(d, b)
+    If j > 0 Then IsChamfered = (d.Features(j).Kind = FK_CHAMFER)
+End Function
 
 ' The sketch s, moved in by off on every side.
 Public Function InsetSketch(s As TFeature, ByVal off As Double) As TFeature
@@ -219,11 +248,11 @@ Public Function FilletFits(d As TDesign, ByVal j As Integer) As Boolean
     FilletFits = True
 End Function
 
-' The fillet on extrude b, or 0. Only the first one that fits counts.
+' The fillet or chamfer on extrude b, or 0. Only the first one that fits counts.
 Public Function FilletOf(d As TDesign, ByVal b As Integer) As Integer
     Dim j As Integer
     For j = b + 1 To d.Count
-        If d.Features(j).Kind = FK_FILLET And d.Features(j).Ref = b And d.Features(j).Suppressed = 0 Then
+        If IsEdgeFinish(d.Features(j).Kind) And d.Features(j).Ref = b And d.Features(j).Suppressed = 0 Then
             If FilletFits(d, j) Then
                 FilletOf = j
                 Exit Function
@@ -255,6 +284,7 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
     Dim steps As Integer, a0 As Double, a1 As Double, sz As Double
     Dim used() As Boolean, fr As Double, zf As Double, m As Integer
     Dim qx() As Double, qy() As Double, qseam() As Boolean, ox() As Double, oy() As Double
+    Dim bCh As Boolean, nst As Integer, in0 As Double, up0 As Double, in1 As Double, up1 As Double
 
     ReDim e(0 To 255)
     If d.Count > 0 Then ReDim used(1 To d.Count) Else ReDim used(0 To 0)
@@ -293,7 +323,10 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
                     Next j
                 Else
                     ' straight sides up to where the fillet starts, then the
-                    ' quarter circles at each seam, and the smaller top
+                    ' quarter circles (or the chamfer's slopes) at each seam,
+                    ' and the smaller top
+                    bCh = IsChamfered(d, i)
+                    nst = EdgeSteps(bCh, FILLET_STEPS)
                     zf = z1 - fr
                     np = ProfilePoints(s, px, py, seam, CIRCLE_SEGS, True)
                     For j = 0 To np - 1
@@ -303,13 +336,13 @@ Public Function Regenerate(d As TDesign, e() As TEdge) As Long
                         If seam(j) Then AddEdge e, n, px(j), py(j), z0, px(j), py(j), zf, COL_SOLID
                     Next j
                     ox = px: oy = py
-                    For m = 1 To FILLET_STEPS
-                        a0 = (PI / 2) * (m - 1) / FILLET_STEPS
-                        a1 = (PI / 2) * m / FILLET_STEPS
-                        b = InsetSketch(s, fr * (1 - Cos(a1)))
+                    For m = 1 To nst
+                        EdgeAt bCh, fr, (m - 1) / nst, in0, up0
+                        EdgeAt bCh, fr, m / nst, in1, up1
+                        b = InsetSketch(s, in1)
                         ProfilePoints b, qx, qy, qseam, CIRCLE_SEGS, True
                         For j = 0 To np - 1
-                            If seam(j) Then AddEdge e, n, ox(j), oy(j), zf + fr * Sin(a0), qx(j), qy(j), zf + fr * Sin(a1), COL_SOLID
+                            If seam(j) Then AddEdge e, n, ox(j), oy(j), zf + up0, qx(j), qy(j), zf + up1, COL_SOLID
                         Next j
                         ox = qx: oy = qy
                     Next m
@@ -382,7 +415,7 @@ Public Function RefOk(d As TDesign, ByVal i As Integer) As Boolean
         RefOk = True          ' nothing to build, nothing to break
     Case FK_SM_BASE, FK_SM_EDGE, FK_SM_FLAT
         RefOk = SM_RefOk(d, i)
-    Case FK_FILLET
+    Case FK_FILLET, FK_CHAMFER
         If f.Ref >= 1 And f.Ref < i Then
             If d.Features(f.Ref).Kind = FK_EXTRUDE Then
                 If RefOk(d, f.Ref) Then RefOk = (FilletOf(d, f.Ref) = i)

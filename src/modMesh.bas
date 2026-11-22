@@ -303,28 +303,30 @@ End Sub
 
 ' The walls of a filleted extrude: straight up to where the fillet starts,
 ' then bands up the quarter circle, each ring the outline moved in a little
-' more, to the top's edge. Rings have the same number of points (a sharp
+' more, to the top's edge. A chamfer is one band, straight to the top's
+' edge. Rings have the same number of points (a sharp
 ' corner is a corner of radius 0, all its points in one place), and the
 ' slivers between points in the same place have no area and are left out.
 Private Sub FilletWalls(d As TDesign, ByVal i As Integer, ByVal z0 As Double, ByVal z1 As Double, ByVal fr As Double)
     Dim s As TFeature, tf As TFeature, seam() As Boolean
     Dim ax() As Double, ay() As Double, bx() As Double, by() As Double
     Dim n As Long, k As Long, k2 As Long, m As Integer, steps As Integer
-    Dim za As Double, zb As Double, a As Double, zf As Double
+    Dim za As Double, zb As Double, zf As Double, bCh As Boolean, inset As Double, rise As Double
     s = d.Features(d.Features(i).Ref)
     zf = z1 - fr
     n = ProfilePoints(s, ax, ay, seam, mSegs, True)
     RingBand ax, ay, z0, ax, ay, zf, n, i
-    steps = mSegs \ 4
+    bCh = IsChamfered(d, i)
+    steps = EdgeSteps(bCh, mSegs \ 4)
     za = zf
     For m = 1 To steps
-        a = (PI / 2) * m / steps
         If m = steps Then
             tf = InsetSketch(s, fr)              ' exactly the top's edge
             zb = z1
         Else
-            tf = InsetSketch(s, fr * (1 - Cos(a)))
-            zb = zf + fr * Sin(a)
+            EdgeAt bCh, fr, m / steps, inset, rise
+            tf = InsetSketch(s, inset)
+            zb = zf + rise
         End If
         ProfilePoints tf, bx, by, seam, mSegs, True
         RingBand ax, ay, za, bx, by, zb, n, i
