@@ -24,6 +24,8 @@ key Tab
 key ctrl+a
 type_ 30
 key Return
+key alt+t
+key a
 key v
 key Return
 sleep 1
@@ -35,7 +37,6 @@ key Up Up Down Down Left Right Left Right b a
 sleep 1
 shot m06-konami
 sleep 3
-key alt+v
-key t
+turbo_on
 sleep 1
 shot m07-y2k

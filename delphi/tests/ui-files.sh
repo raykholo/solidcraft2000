@@ -12,28 +12,31 @@ key ctrl+s
 sleep 2
 shot f01-savedlg
 key ctrl+a
-type_ /w/tests/out/files/box.sc98
+type_ $HERE/tests/out/files/box.sc98
 key Return
 sleep 2
 shot f02-saved
+file_all
 key alt+f
 key r
 sleep 2
 key ctrl+a
-type_ /w/tests/out/files/box.stl
+type_ $HERE/tests/out/files/box.stl
 key Return
 sleep 2
 shot f03-stl
 key Return
+file_all
 key alt+f
 key w
 sleep 2
 key ctrl+a
-type_ /w/tests/out/files/box.htm
+type_ $HERE/tests/out/files/box.htm
 key Return
 sleep 3
 shot f04-published
 key Return
+file_all
 key alt+f
 key d
 sleep 1
@@ -41,22 +44,25 @@ shot f05-nofloppy
 key Return
 key ctrl+o
 sleep 2
-type_ "/w/tests/Mounting Plate.sc98"
+type_ "$SAMPLES/Mounting Plate.sc98"
 sleep 1
 key Return
 sleep 3
 shot f06-opened
+key Return
+sleep 1
+shot f06b-upgraded
 key ctrl+o
 sleep 2
-type_ "/w/tests/Plate with holes.solidcraft"
+type_ "$SAMPLES/Plate with holes.solidcraft"
 sleep 1
 key Return
 sleep 3
 shot f07-imported
 key Return
 sleep 1
-key alt+v
-key t
+turbo_on
+file_all
 key alt+f
 key d
 sleep 3

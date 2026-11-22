@@ -2,11 +2,12 @@
   the Windows version's modImport.
 
   A .solidcraft file is a ZIP holding document.json, the design's feature
-  history (a plain-JSON design works too). We rebuild what SolidCraft 98 can
-  build: flat sketches of rectangles (rounded or not) and circles, extrudes,
-  revolves about the sketch's Y axis, and straight-down holes. Everything
-  else stays in the timeline as "Requires SolidCraft 2000". A feature comes
-  over whole or not at all. }
+  history (a plain-JSON design works too). We rebuild what SolidCraft 2000
+  can build: flat sketches of rectangles (rounded or not) and circles,
+  extrudes, revolves about the sketch's Y axis, straight-down holes, and
+  (Service Pack 1) fillets and chamfers that take whole sides of one
+  extrude's top and bottom. Everything else stays in the timeline as
+  "Requires SolidCraft XP". A feature comes over whole or not at all. }
 unit uImport;
 
 {$mode objfpc}{$H+}
@@ -319,7 +320,7 @@ begin
       else if JGet(plane, 'offset') > 0 then
       begin
         v := NodeValue(JGet(plane, 'offset'), ok);
-        if ok then s.Z := v else NotOk(s, 'an offset SolidCraft 98 can''t work out');
+        if ok then s.Z := v else NotOk(s, 'an offset SolidCraft 2000 can''t work out');
       end;
     'face':
       begin
@@ -558,7 +559,7 @@ begin
   if not through then
   begin
     dist := NodeValue(JGet(ext, 'distance'), ok);
-    if not ok or (dist <= 0) then begin Foreign(d, f, 'Extrude', 'a distance SolidCraft 98 can''t work out'); Exit; end;
+    if not ok or (dist <= 0) then begin Foreign(d, f, 'Extrude', 'a distance SolidCraft 2000 can''t work out'); Exit; end;
   end;
   sDir := JStr(JGet(ext, 'direction'));
   sOp := JStr(JGet(f, 'operation'));
@@ -640,7 +641,7 @@ begin
   if JGet(f, 'angle') > 0 then
   begin
     ang := NodeValue(JGet(f, 'angle'), ok);
-    if not ok then begin Foreign(d, f, 'Revolve', 'an angle SolidCraft 98 can''t work out'); Exit; end;
+    if not ok then begin Foreign(d, f, 'Revolve', 'an angle SolidCraft 2000 can''t work out'); Exit; end;
   end
   else
     ang := 360;
@@ -692,20 +693,155 @@ begin
   if (kind <> '') and (kind <> 'simple') and (kind <> 'drilled') then begin Foreign(d, f, 'Hole', PrettyType(kind)); Exit; end;
   if JGet(f, 'diameter') = 0 then begin Foreign(d, f, 'Hole', 'a clearance or tapped size'); Exit; end;
   dia := NodeValue(JGet(f, 'diameter'), ok);
-  if not ok or (dia <= 0) then begin Foreign(d, f, 'Hole', 'a diameter SolidCraft 98 can''t work out'); Exit; end;
+  if not ok or (dia <= 0) then begin Foreign(d, f, 'Hole', 'a diameter SolidCraft 2000 can''t work out'); Exit; end;
   depth := 0;
   if JGet(f, 'depth') > 0 then
   begin
     depth := NodeValue(JGet(f, 'depth'), ok);
-    if not ok or (depth <= 0) then begin Foreign(d, f, 'Hole', 'a depth SolidCraft 98 can''t work out'); Exit; end;
+    if not ok or (depth <= 0) then begin Foreign(d, f, 'Hole', 'a depth SolidCraft 2000 can''t work out'); Exit; end;
   end;
   if JGet(f, 'to') > 0 then begin Foreign(d, f, 'Hole', 'drilled to an object'); Exit; end;
   x := NodeValue(JItem(pos_, 0), ok); y := NodeValue(JItem(pos_, 1), ok); z := NodeValue(JItem(pos_, 2), ok);
   t := ExtrudeWithTopAt(d, z, x, y, dia / 2);
-  if t = 0 then begin Foreign(d, f, 'Hole', 'not on the top of a block SolidCraft 98 built'); Exit; end;
+  if t = 0 then begin Foreign(d, f, 'Hole', 'not on the top of a block SolidCraft 2000 built'); Exit; end;
   h := Default(TFeature);
   h.Kind := FK_HOLE; h.Ref := t; h.X := x; h.Y := y; h.P1 := dia; h.P2 := depth;
   AddRaw(d, h, JStr(JGet(f, 'name')));
+end;
+
+{ ---- fillets and chamfers (Service Pack 1) ----
+  SolidCraft names each edge by a point on it. SolidCraft 2000 rounds (or
+  bevels) whole sides of an extrude's top and bottom, so the feature comes
+  over when its points are all on one extrude's top or bottom outline: the
+  sides they're on are the sides it takes. Upright edges, or a circle's edge
+  taken in part, wait for SolidCraft XP. }
+
+{ Which side of sketch s the point (x, y) is on: 0 front, 1 right, 2 back,
+  3 left (a circle is all side 0), -1 a rounded corner, -2 not on the outline. }
+function OutlineSide(const s: TFeature; x, y: Double): Integer;
+var
+  r, cx, cy: Double;
+begin
+  Result := -2;
+  if s.Kind = FK_SKETCH_CIRCLE then
+  begin
+    if Abs(Sqrt(Sqr(x - s.X) + Sqr(y - s.Y)) - s.P1) < IEPS then Result := 0;
+    Exit;
+  end;
+  r := s.P3;
+  if (x > s.X + r - IEPS) and (x < s.X + s.P1 - r + IEPS) then
+  begin
+    if Abs(y - s.Y) < IEPS then Exit(0);
+    if Abs(y - (s.Y + s.P2)) < IEPS then Exit(2);
+  end;
+  if (y > s.Y + r - IEPS) and (y < s.Y + s.P2 - r + IEPS) then
+  begin
+    if Abs(x - (s.X + s.P1)) < IEPS then Exit(1);
+    if Abs(x - s.X) < IEPS then Exit(3);
+  end;
+  if r > 0 then
+  begin
+    if x < s.X + r then cx := s.X + r else cx := s.X + s.P1 - r;
+    if y < s.Y + r then cy := s.Y + r else cy := s.Y + s.P2 - r;
+    if Abs(Sqrt(Sqr(x - cx) + Sqr(y - cy)) - r) < IEPS then Result := -1;
+  end;
+end;
+
+{ Are all the points on the top or bottom outline of extrude b? mt and mb get
+  the sides they're on (1 front, 2 right, 4 back, 8 left). A circle, or a
+  rectangle with rounded corners, goes round in one piece: any point on it
+  takes it all. }
+function EdgeSides(const d: TDesign; b: Integer; const px, py, pz: TDoubleArray; n: Integer;
+  out mt, mb: Integer): Boolean;
+var
+  s: TFeature;
+  z0, z1: Double;
+  k, side, bit: Integer;
+begin
+  Result := False;
+  s := d.F[d.F[b].Ref];
+  ExtrudeRange(d, b, z0, z1);
+  mt := 0; mb := 0;
+  for k := 0 to n - 1 do
+  begin
+    side := OutlineSide(s, px[k], py[k]);
+    if side < -1 then Exit;                    // not on the outline at all
+    if (side = -1) or (s.Kind = FK_SKETCH_CIRCLE) or (s.P3 > 0) then bit := SIDES_ALL else bit := 1 shl side;
+    if Abs(pz[k] - z1) < IEPS then mt := mt or bit
+    else if Abs(pz[k] - z0) < IEPS then mb := mb or bit
+    else Exit;                                 // an upright edge
+  end;
+  Result := True;
+end;
+
+procedure ImportEdgeFinish(var d: TDesign; f: Integer; bChamfer: Boolean);
+var
+  edges, n, k, j, b: Integer;
+  r: Double;
+  ok: Boolean;
+  sWhat: string;
+  px, py, pz: TDoubleArray;
+  e: TFeature;
+  mt, mb: Integer;
+begin
+  if bChamfer then sWhat := 'Chamfer' else sWhat := 'Fillet';
+  if bChamfer then
+  begin
+    if (JGet(f, 'distance2') > 0) or (JGet(f, 'angle') > 0) then begin Foreign(d, f, sWhat, 'not the same distance both ways'); Exit; end;
+    r := NodeValue(JGet(f, 'distance'), ok);
+  end
+  else
+  begin
+    if JGet(f, 'style') > 0 then
+      if JStr(JGet(JGet(f, 'style'), 'type')) <> 'constant' then begin Foreign(d, f, sWhat, 'not a constant radius'); Exit; end;
+    r := NodeValue(JGet(f, 'radius'), ok);
+  end;
+  if not ok or (r <= 0) then begin Foreign(d, f, sWhat, 'a size SolidCraft 2000 can''t work out'); Exit; end;
+  edges := JGet(f, 'edges');
+  if JKind(edges) <> JS_ARR then begin Foreign(d, f, sWhat, 'edges SolidCraft 2000 can''t find'); Exit; end;
+  n := JCount(edges);
+  if n = 0 then begin Foreign(d, f, sWhat, 'no edges'); Exit; end;
+  SetLength(px, n); SetLength(py, n); SetLength(pz, n);
+  for k := 0 to n - 1 do
+  begin
+    if JKind(JItem(edges, k)) <> JS_ARR then begin Foreign(d, f, sWhat, 'edges SolidCraft 2000 can''t find'); Exit; end;
+    px[k] := JNum(JItem(JItem(edges, k), 0));
+    py[k] := JNum(JItem(JItem(edges, k), 1));
+    pz[k] := JNum(JItem(JItem(edges, k), 2));
+  end;
+  b := d.Count;
+  while b >= 1 do
+  begin
+    if d.F[b].Kind = FK_EXTRUDE then
+      if RefOk(d, b) and EdgeSides(d, b, px, py, pz, n, mt, mb) then Break;
+    Dec(b);
+  end;
+  if b < 1 then begin Foreign(d, f, sWhat, 'on edges other than whole sides of one extrude''s top or bottom'); Exit; end;
+  for j := b + 1 to d.Count do
+    if IsEdgeFinish(d.F[j].Kind) and (d.F[j].Ref = b) then
+    begin
+      Foreign(d, f, sWhat, 'on an extrude that already has a fillet or chamfer');
+      Exit;
+    end;
+  e := Default(TFeature);
+  if bChamfer then e.Kind := FK_CHAMFER else e.Kind := FK_FILLET;
+  e.Ref := b;
+  e.P1 := r;
+  e.Reserved[1] := SIDES_ALL - mt;
+  e.Reserved[2] := mb;
+  j := AddRaw(d, e, JStr(JGet(f, 'name')));
+  if j = 0 then Exit;
+  if not RefOk(d, j) then
+  begin
+    // too big for the extrude, or a hole is in its way: say so, and leave it out
+    d.F[j].Kind := FK_FOREIGN;
+    d.F[j].Info := sWhat;
+    d.F[j].P1 := 0; d.F[j].Ref := 0;
+    d.F[j].Reserved[1] := 0; d.F[j].Reserved[2] := 0;
+    Inc(NForeign);
+    if NForeign <= 12 then
+      ForeignText := ForeignText + '    ' + FeatureName(d, j) + ' (' + LowerCase(sWhat) + ': too big for ' + FeatureName(d, b) + ')' + LineEnding;
+  end;
 end;
 
 function ImportSolidCraft(const APath: string; var d: TDesign; out ANotice, AError: string): Boolean;
@@ -750,7 +886,7 @@ begin
   feats := JGet(root, 'features');
   if (JKind(feats) <> JS_ARR) or ((Copy(fmt, 1, 11) <> 'solidcraft/') and (Copy(fmt, 1, 11) <> 'solvecraft/')) then
   begin
-    AError := '''' + APath + ''' isn''t a SolidCraft design that SolidCraft 98 can read.';
+    AError := '''' + APath + ''' isn''t a SolidCraft design that SolidCraft 2000 can read.';
     Exit;
   end;
   NewDesign(d, Copy(JStr(JGet(root, 'name')), 1, 64));
@@ -768,6 +904,8 @@ begin
       'extrude': ImportExtrude(d, f);
       'revolve': ImportRevolve(d, f);
       'hole': ImportHole(d, f);
+      'fillet': ImportEdgeFinish(d, f, False);
+      'chamfer': ImportEdgeFinish(d, f, True);
     else
       Foreign(d, f, PrettyType(sType), '');
     end;
@@ -776,13 +914,13 @@ begin
   for k := 0 to NSk - 1 do
     if Sk[k].Ok and not Sk[k].Used then EmitSketches(d, k, Sk[k].Z, unused);
   if NForeign > 0 then
-    ANotice := 'This design was made in SolidCraft. SolidCraft 98 has opened what it can build.' + LineEnding + LineEnding +
-      'These features require SolidCraft 2000 and have been left out:' + LineEnding + ForeignText + LineEnding +
+    ANotice := 'This design was made in SolidCraft. SolidCraft 2000 has opened what it can build.' + LineEnding + LineEnding +
+      'These features require SolidCraft XP and have been left out:' + LineEnding + ForeignText + LineEnding +
       'They''re still in the timeline.';
   if Full then
   begin
     if ANotice <> '' then ANotice := ANotice + LineEnding + LineEnding;
-    ANotice := ANotice + 'The design has more features than a SolidCraft 98 part can hold (' + IntToStr(MAX_FEATURES) + ').' +
+    ANotice := ANotice + 'The design has more features than a SolidCraft 2000 part can hold (' + IntToStr(MAX_FEATURES) + ').' +
       LineEnding + 'The rest have been left out.';
   end;
   Result := True;

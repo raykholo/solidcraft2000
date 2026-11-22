@@ -114,7 +114,7 @@ var
   f: TFeature;
   g: TDesign;
   r, i, j: Integer;
-  names: array[0..2] of string = ('Plate with holes', 'Revolved parts', 'Flange');
+  names: array[0..3] of string = ('Plate with holes', 'Revolved parts', 'Flange', 'Rounded Block');
   ex: array[0..5] of string = ('40/2+5', '(10+2)*3', '-8', '20mm', '40/0', '1.2.3');
   v: Double;
   e: TEdgeArray;
@@ -233,13 +233,17 @@ begin
   Check(Pos('BEND', Slurp('tests/out/TRAY~1.DXF')) > 0, 'with bend lines');
 
   WriteLn('== SolidCraft designs');
-  for i := 0 to 2 do
+  for i := 0 to 3 do
   begin
     if ImportSolidCraft('../samples/' + names[i] + '.solidcraft', d, notice, err) then
     begin
       WriteLn('import ', names[i], ': ', d.Count, ' features; notice: ', StringReplace(notice, LineEnding, ' / ', [rfReplaceAll]));
       for j := 1 to d.Count do WriteLn('  ', j, ' ', d.F[j].Name, ' | ', Describe(d, j));
+      n := 0;
+      for j := 1 to d.Count do if d.F[j].Kind = FK_FOREIGN then Inc(n);
+      Check(n = 0, names[i] + ': nothing left waiting for a later SolidCraft (fillets and chamfers come over)');
       n := MeshDesign(d, t, MESH_SEGS, serr);
+      Check(Closed(t, n, vol) and (vol > 0), names[i] + ': the import meshes closed');
       WriteStl(t, n, 'tests/out/import' + IntToStr(i) + '.stl', d.Title);
     end
     else begin WriteLn('import ', names[i], ' FAILED: ', err); Inc(fails); end;

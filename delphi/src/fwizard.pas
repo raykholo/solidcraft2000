@@ -42,6 +42,10 @@ type
     procedure OptClick(Sender: TObject); virtual;
     procedure ListClick(Sender: TObject); virtual;
     procedure ListDbl(Sender: TObject);
+    { Enter goes to Next (or Finish) on every page, not to whatever button had the focus last. }
+    procedure FocusNext;
+    { A label drops empty lines (GTK), so a blank line gets a space in it. }
+    procedure FixBody;
   end;
 
 constructor TWizardForm.CreateWizard(AOwner: TComponent; const ACaption: string);
@@ -56,7 +60,7 @@ begin
   Side.OnPaint := @SidePaint;
   Title := TLabel.Create(Self); Title.Parent := Self; Title.SetBounds(166, 14, 318, 40);
   Title.AutoSize := False; Title.WordWrap := True; Title.Font.Style := [fsBold]; Title.Font.Size := 11;
-  Body := TLabel.Create(Self); Body.Parent := Self; Body.SetBounds(166, 62, 318, 150);
+  Body := TLabel.Create(Self); Body.Parent := Self; Body.SetBounds(166, 62, 318, 160);
   Body.AutoSize := False; Body.WordWrap := True;
   OptA := TRadioButton.Create(Self); OptA.Parent := Self; OptA.SetBounds(180, 226, 290, 22);
   OptB := TRadioButton.Create(Self); OptB.Parent := Self; OptB.SetBounds(180, 252, 290, 22);
@@ -120,6 +124,21 @@ procedure TWizardForm.BackClick(Sender: TObject);
 begin
   if Page > 0 then Dec(Page);
   ShowPage;
+end;
+
+procedure TWizardForm.FixBody;
+begin
+  Body.Caption := StringReplace(Body.Caption, LineEnding + LineEnding, LineEnding + ' ' + LineEnding, [rfReplaceAll]);
+end;
+
+procedure TWizardForm.FocusNext;
+begin
+  FixBody;
+  try
+    if Lst.Visible then ActiveControl := Lst else ActiveControl := BtnNext;
+  except
+    // before the form is on screen there's no focus to give
+  end;
 end;
 
 procedure TWizardForm.OptClick(Sender: TObject);
@@ -231,6 +250,7 @@ begin
          Body.Caption := Body.Caption + 'Nothing on this computer was changed. To close this wizard, click Finish.';
        end;
   end;
+  if Page <> 3 then FocusNext;
 end;
 
 { One line of the Year 2000 check per tick, and the bar. }
@@ -250,6 +270,7 @@ begin
         '* Tested until 19 January 2038. After that, you''re on your own.';
   end;
   Body.Caption := s;
+  FixBody;
   if Checked >= 4 then BarFrac := 1 else BarFrac := Checked / 4;
   Bar.Invalidate;
 end;
@@ -263,6 +284,7 @@ begin
     Tmr.Enabled := False;
     BtnNext.Enabled := True;
     BtnBack.Enabled := True;
+    FocusNext;
   end;
 end;
 
@@ -469,6 +491,7 @@ begin
   end;
   if Page < LAST_BEND_PAGE then Body.Height := 56 else Body.Height := 200;
   Lst.Top := 126; Lst.Height := 160;
+  FocusNext;
 end;
 
 procedure TBendForm.ListClick(Sender: TObject);
@@ -494,6 +517,7 @@ begin
   R := ParamValue[0];
   K := ParamValue[1];
   ShowSummary;
+  FocusNext;
 end;
 
 procedure TBendForm.NextClick(Sender: TObject);

@@ -1,7 +1,6 @@
 # Turbo: the LED, the type mismatch escalation, the blue screen, the solver.
 sleep 3
-key alt+v
-key t
+turbo_on
 shot t01-turbo-on
 key r
 type_ 20mm

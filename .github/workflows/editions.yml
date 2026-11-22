@@ -29,7 +29,7 @@ env:
 jobs:
   delphi-linux:
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Get Lazarus
@@ -44,12 +44,33 @@ jobs:
               lazarus-ide-gtk2 lcl-gtk2 lcl-utils fpc xvfb xdotool imagemagick < /dev/null
       - name: Build
         working-directory: delphi
-        run: lazbuild -q SolidCraft98.lpi && ls -la build/SolidCraft98
+        run: lazbuild -q SolidCraft2000.lpi && ls -la build/SolidCraft2000
+      - name: Core tests (files byte for byte, fillets, patterns, sheet metal, closed meshes)
+        working-directory: delphi
+        run: |
+          LU=$(dirname "$(find /usr/lib/lazarus -name lazutils.ppu | head -1)")
+          fpc -O1 -Fusrc -Fu"$LU" -FUbuild -obuild/coretest tests/coretest.pas > build/coretest-build.txt || { cat build/coretest-build.txt; exit 1; }
+          build/coretest | tee core.txt
+          grep -q "core: all ok" core.txt
       - name: Run it on a virtual screen
         working-directory: delphi
-        run: bash tests/x11.sh tests/ui-basic.sh | tee run.txt; grep -q "app alive" run.txt
+        run: |
+          # one run per script: each starts the program on its own virtual screen and
+          # leaves screenshots in tests/out. The scripts that end by quitting don't say "app alive".
+          for t in ui-basic ui-2000 ui-2000-files ui-2000-sheet ui-2000-misc ui-turbo ui-about ui-misc; do
+            echo "=== $t"
+            bash tests/x11.sh tests/$t.sh | tee run-$t.txt
+            grep -q "app alive" run-$t.txt
+            ! grep -q "Unhandled" run-$t.txt
+          done
+          echo "=== ui-crash (the scheduled blue screen)"
+          bash tests/x11.sh tests/ui-crash.sh --crashtest | tee run-crash.txt
+          grep -q "app alive" run-crash.txt
+          echo "=== ui-files (ends by quitting)"
+          bash tests/x11.sh tests/ui-files.sh | tee run-files.txt
+          ! grep -q "Unhandled" run-files.txt
       - uses: actions/upload-artifact@v7
-        with: { name: delphi-linux, path: delphi/build/SolidCraft98 }
+        with: { name: delphi-linux, path: delphi/build/SolidCraft2000 }
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: delphi-linux-screens, path: delphi/tests/out }
@@ -71,27 +92,49 @@ jobs:
         working-directory: delphi
         shell: pwsh
         run: |
-          C:\lazarus\lazbuild.exe -q SolidCraft98.lpi
-          if (-not (Test-Path build\SolidCraft98.exe)) { throw "no EXE" }
-          Get-Item build\SolidCraft98.exe
-      - name: Start it
+          C:\lazarus\lazbuild.exe -q SolidCraft2000.lpi
+          if (-not (Test-Path build\SolidCraft2000.exe)) { throw "no EXE" }
+          Get-Item build\SolidCraft2000.exe
+      - name: Core tests (files byte for byte, fillets, patterns, sheet metal, closed meshes)
         working-directory: delphi
         shell: pwsh
         run: |
-          $p = Start-Process build\SolidCraft98.exe -PassThru
-          Start-Sleep 10
-          if ($p.HasExited) { throw "SolidCraft98.exe exited with $($p.ExitCode)" }
+          $lu = (Get-ChildItem C:\lazarus\components\lazutils\lib -Directory | Select-Object -First 1).FullName
+          $fpc = (Get-ChildItem C:\lazarus\fpc -Recurse -Filter fpc.exe | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force build | Out-Null
+          & $fpc -O1 -Fusrc "-Fu$lu" -FUbuild -obuild\coretest.exe tests\coretest.pas | Select-Object -Last 5
+          $out = & build\coretest.exe
+          $out | Out-File core.txt
+          $out
+          if (-not ($out -match "core: all ok")) { throw "core tests failed" }
+      - name: Start it, open parts, make the blue screen
+        working-directory: delphi
+        shell: pwsh
+        run: |
           Add-Type -AssemblyName System.Windows.Forms, System.Drawing
-          $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-          $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
-          [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
-          $bmp.Save("windows-start.png")
-          Stop-Process $p
+          function Shot($name) {
+            $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
+            [System.Drawing.Graphics]::FromImage($bmp).CopyFromScreen($b.Location, [System.Drawing.Point]::Empty, $b.Size)
+            $bmp.Save("windows-$name.png")
+          }
+          function Run($name, $argline, $wait) {
+            $p = Start-Process build\SolidCraft2000.exe -ArgumentList $argline -PassThru
+            Start-Sleep $wait
+            if ($p.HasExited) { throw "SolidCraft2000.exe $argline exited with $($p.ExitCode)" }
+            Shot $name
+            Stop-Process $p
+          }
+          Run "start" "" 10
+          Run "filleted-plate" "`"..\samples\Filleted Plate.sc2`"" 10
+          Run "sheet-metal-tray" "`"..\samples\Sheet Metal Tray.sc2`"" 10
+          Run "sc98-part" "`"..\samples\Mounting Plate.sc98`"" 10
+          Run "bluescreen" "/CRASHTEST" 18
       - uses: actions/upload-artifact@v7
-        with: { name: delphi-windows, path: delphi/build/SolidCraft98.exe }
+        with: { name: delphi-windows, path: delphi/build/SolidCraft2000.exe }
       - uses: actions/upload-artifact@v7
         if: always()
-        with: { name: delphi-windows-screens, path: delphi/windows-start.png }
+        with: { name: delphi-windows-screens, path: delphi/windows-*.png }
 
   delphi-pi:
     runs-on: ubuntu-22.04
@@ -100,19 +143,22 @@ jobs:
       - uses: actions/checkout@v7
       - name: Emulate ARM
         run: docker run --privileged --rm docker.io/tonistiigi/binfmt --install arm
-      - name: Build in Raspberry Pi OS (ARMv6)
-        working-directory: delphi
+      - name: Build in Raspberry Pi OS (ARMv6), and run the core tests there
         run: |
-          docker run --rm --platform linux/arm/v6 -v "$PWD":/w -w /w $PI_IMAGE bash -c '
+          docker run --rm --platform linux/arm/v6 -v "$PWD":/r -w /r/delphi $PI_IMAGE bash -c '
             set -e
             export DEBIAN_FRONTEND=noninteractive
             apt-get update -qq
             apt-get install -y -qq --no-install-recommends lazarus-ide-gtk2 lcl-gtk2 lcl-utils fpc lazarus-src-2.0 lcl-utils-2.0 lcl-units-2.0 file > /dev/null
-            lazbuild -q SolidCraft98.lpi
-            file build/SolidCraft98
-            readelf -A build/SolidCraft98 | grep "Tag_CPU_arch: v6"'
+            lazbuild -q SolidCraft2000.lpi
+            file build/SolidCraft2000
+            readelf -A build/SolidCraft2000 | grep "Tag_CPU_arch: v6"
+            LU=$(dirname "$(find /usr/lib/lazarus -name lazutils.ppu | head -1)")
+            fpc -O1 -Fusrc -Fu"$LU" -FUbuild -obuild/coretest tests/coretest.pas > build/coretest-build.txt || { cat build/coretest-build.txt; exit 1; }
+            build/coretest | tee core.txt
+            grep -q "core: all ok" core.txt'
       - uses: actions/upload-artifact@v7
-        with: { name: delphi-pi, path: delphi/build/SolidCraft98 }
+        with: { name: delphi-pi, path: delphi/build/SolidCraft2000 }
 
   freebasic-linux:
     runs-on: ubuntu-22.04
@@ -247,12 +293,12 @@ jobs:
       - name: Pack
         run: |
           mkdir -p delphi/build/arm delphi/build/win freebasic/build/arm dist-out
-          cp art/delphi-linux/SolidCraft98 delphi/build/SolidCraft98
-          cp art/delphi-pi/SolidCraft98 delphi/build/arm/SolidCraft98
-          cp art/delphi-windows/SolidCraft98.exe delphi/build/win/SolidCraft98.exe
+          cp art/delphi-linux/SolidCraft2000 delphi/build/SolidCraft2000
+          cp art/delphi-pi/SolidCraft2000 delphi/build/arm/SolidCraft2000
+          cp art/delphi-windows/SolidCraft2000.exe delphi/build/win/SolidCraft2000.exe
           cp art/freebasic-linux/sc2000 freebasic/build/sc2000
           cp art/freebasic-pi/sc2000 freebasic/build/arm/sc2000
-          chmod +x delphi/build/SolidCraft98 delphi/build/arm/SolidCraft98 freebasic/build/sc2000 freebasic/build/arm/sc2000
+          chmod +x delphi/build/SolidCraft2000 delphi/build/arm/SolidCraft2000 freebasic/build/sc2000 freebasic/build/arm/sc2000
           delphi/mkdist.sh
           freebasic/mkdist.sh --pack-only
           cp delphi/dist/*.zip freebasic/dist/*.tar.gz dist-out/

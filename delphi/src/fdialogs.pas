@@ -127,7 +127,7 @@ function AskParams(const ATitle, APrompts, ADefaults: string): Boolean;
 var
   f: TParamsForm;
   prompts, defaults: TStringList;
-  i, y: Integer;
+  i, y, lw, ex: Integer;
   b: TButton;
 begin
   prompts := TStringList.Create;
@@ -142,15 +142,20 @@ begin
     f.Count := prompts.Count;
     if f.Count > MAX_FIELDS then f.Count := MAX_FIELDS;
     y := 14;
+    // the label column is as wide as its longest prompt
+    lw := 190;
+    for i := 0 to f.Count - 1 do
+      if f.Canvas.TextWidth(prompts[i]) + 8 > lw then lw := f.Canvas.TextWidth(prompts[i]) + 8;
+    ex := 14 + lw + 8;
     for i := 0 to f.Count - 1 do
     begin
       f.Labels[i] := TLabel.Create(f);
       f.Labels[i].Parent := f;
-      f.Labels[i].SetBounds(14, y + 4, 190, 20);
+      f.Labels[i].SetBounds(14, y + 4, lw, 20);
       f.Labels[i].Caption := prompts[i];
       f.Edits[i] := TEdit.Create(f);
       f.Edits[i].Parent := f;
-      f.Edits[i].SetBounds(212, y, 110, 24);
+      f.Edits[i].SetBounds(ex, y, 110, 24);
       if i < defaults.Count then f.Edits[i].Text := defaults[i] else f.Edits[i].Text := '0';
       f.Edits[i].OnEnter := @f.EditEnter;
       f.Edits[i].TabOrder := i;
@@ -158,12 +163,12 @@ begin
     end;
     Inc(y, 6);
     b := TButton.Create(f); b.Parent := f; b.Caption := 'OK'; b.Default := True;
-    b.SetBounds(86, y, 76, 26); b.OnClick := @f.OkClick; b.TabOrder := f.Count;
+    b.SetBounds(ex - 126, y, 76, 26); b.OnClick := @f.OkClick; b.TabOrder := f.Count;
     b := TButton.Create(f); b.Parent := f; b.Caption := 'Cancel'; b.Cancel := True; b.ModalResult := mrCancel;
-    b.SetBounds(166, y, 76, 26); b.TabOrder := f.Count + 1;
+    b.SetBounds(ex - 46, y, 76, 26); b.TabOrder := f.Count + 1;
     b := TButton.Create(f); b.Parent := f; b.Caption := '&Help';
-    b.SetBounds(246, y, 76, 26); b.OnClick := @f.HelpClick; b.TabOrder := f.Count + 2;
-    f.ClientWidth := 336;
+    b.SetBounds(ex + 34, y, 76, 26); b.OnClick := @f.HelpClick; b.TabOrder := f.Count + 2;
+    f.ClientWidth := ex + 110 + 14;
     f.ClientHeight := y + 40;
     f.ActiveControl := f.Edits[0];
     f.Edits[0].SelectAll;
