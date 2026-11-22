@@ -109,6 +109,13 @@ it again. Twenty levels for each part, like Office 2000. The status bar says
 what was undone, and "Can't Undo." when there's nothing left. (1.0's Undo
 only ever took off the last feature.)
 
+### Fillets and chamfers from SolidCraft designs
+
+File > Open on a SolidCraft design now brings its fillets and chamfers over
+too, when they take whole sides of an extrude's top or bottom, as SolidCraft
+2000's own do. One on an upright edge, or on part of a circle, still waits in
+the timeline for SolidCraft XP. New sample: `Rounded Block.solidcraft`.
+
 ### Service Pack 1 parts
 
 A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as

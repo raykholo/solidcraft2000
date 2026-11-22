@@ -10,7 +10,8 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
   minutes or so, and the Stability Pack.
 - **Service Pack 1:** chamfers, at 45 degrees; hole patterns, a row or a
   bolt circle; fillets and chamfers on chosen sides of the top, and on the
-  bottom; a real undo and redo history, twenty levels deep.
+  bottom; a real undo and redo history, twenty levels deep; fillets and
+  chamfers from SolidCraft designs.
 
 ## Wanted
 
@@ -19,5 +20,4 @@ What's been done, and what might happen. Nothing below "Done" is a promise.
 
 ## SolidCraft XP, maybe
 
-- Fillets from SolidCraft designs, when they round whole top edges.
 - Sketches on side faces.
