@@ -1,30 +1,68 @@
-# SolidCraft 98: Embedded Edition
+# SolidCraft 2000: Embedded Edition (preview)
 
-The fourth edition of SolidCraft 98, in Rust, built for embedded: it can run on a potato. The same features and the same
-`.sc98` files, byte for byte, as the Windows, Delphi and Linux editions, on a small `no_std` core that fits a
-microcontroller, with a desktop window for trying it out and a screen that is any terminal over a USB cable.
+> **SolidCraft 2000 is a parody.** It is not affiliated with, endorsed by, or a
+> replacement for SolidCraft, and it shares no code with it. Neither is
+> SolidCraft 98, whose Embedded Edition this grew out of.
 
-![The classic 640 × 480 desktop](docs/desktop-640x480.png)
-![The compact 320 × 240 screen](docs/desktop-320x240.png)
+The same joke as [SolidCraft 2000](../README.md), in Rust, for a computer that
+costs less than the floppy disk: a small `no_std` core, the grey-teal desktop
+drawn by hand into a framebuffer, a desktop window for trying it out, and a
+screen that is any terminal on the far end of a USB cable. Version 1.2.
+
+It is a **preview**. It does about half of what SolidCraft 2000 does, and it
+will say so.
+
+![The classic 640 x 480 desktop](docs/desktop-640x480.png)
+![The compact 320 x 240 screen](docs/desktop-320x240.png)
+![SolidCraft 2000's Filleted Plate, opened in the Embedded Edition](docs/desktop-filleted-640x480.png)
+
+## What it does
+
+- **Opens SolidCraft 2000 parts** (`.sc2`, format versions 3 to 7, Service Pack
+  1 included) and SolidCraft 98 parts (`.sc98`), and saves both back byte for
+  byte. Try `samples/Filleted Plate.sc2`.
+- **Builds them**: sketches (rectangle with corner radii, circle), extrude,
+  revolve, through and blind holes, and the new thing, **fillets and
+  chamfers**: every top edge, the bottom edges, or chosen sides of a
+  rectangle, exactly as SolidCraft 2000 rounds them. Wireframe, shaded, and STL.
+- **Opens SolidCraft designs** (`.solidcraft`), as far as SolidCraft 98 could
+  (build with the `import` feature).
+- **Draws it** at 640 x 480 or 320 x 240, in 16 bit colour or the 16 colours
+  of the day, with depth buffer or painter's algorithm, in a window, to a PNG,
+  or as ANSI text.
+
+## What it doesn't do yet
+
+- **Hole patterns**, **sketches on side faces**, **sheet metal**, **Undo**,
+  **parameters** and **the Stability Pack**. A part that uses them opens and
+  saves unchanged, and the timeline marks what can't be built.
+- **Editing in the window.** The desktop shows a part (`--open FILE`, or the
+  mounting plate) and returns the commands you click to its host. It does not
+  yet save, or change a dimension. File commands say "No disk in drive A:." It
+  is authentic.
+- **Blue-screening every 15 minutes.** It does not crash. Ask again in 1.3.
 
 | Crate | What it is |
 |---|---|
-| `sc98-core` | Parts, features (sketch, extrude, revolve, hole), editing and rebuild, `.sc98` files byte for byte, meshes and STL. `no_std`. |
-| `sc98-pixels` | The Windows 98 look drawn by hand into a framebuffer: font, icons, widgets, the 3D view (wireframe and shaded). `no_std`. |
-| `sc98-desktop` | A desktop window showing the classic 640 × 480 or compact 320 × 240 layout. |
-| `sc98-term` | The screen as ANSI terminal output (half-blocks for shaded, Braille dots for wireframe), only changed cells sent, keys and mouse back. `no_std`. |
-| `sc98-term-demo` | The terminal screen in a PC terminal, no microcontroller needed. |
+| `sc2000-core` | Parts, features (sketch, extrude, revolve, hole, fillet, chamfer), editing and rebuild, `.sc2` and `.sc98` files byte for byte, meshes and STL. `no_std`. |
+| `sc2000-pixels` | The SolidCraft 2000 look drawn by hand into a framebuffer: font, icons, widgets, the 3D view (wireframe and shaded). `no_std`. |
+| `sc2000-desktop` | A desktop window showing the classic 640 x 480 or compact 320 x 240 layout, and the adapter that shows a core part. |
+| `sc2000-term` | The screen as ANSI terminal output (half-blocks for shaded, Braille dots for wireframe), only changed cells sent, keys and mouse back. `no_std`. |
+| `sc2000-term-demo` | The terminal screen in a PC terminal, no microcontroller needed. |
 
-The core's own notes are in [`sc98-core/README.md`](sc98-core/README.md).
+The core's own notes are in [`sc2000-core/README.md`](sc2000-core/README.md).
+CI ([`rust.yml`](../.github/workflows/rust.yml)) checks formatting, the core
+without `std`, the tests, clippy, and RISC-V builds with their sizes.
 
 ## Pixels: try it
 
 From `rust/`:
 
 ```sh
-cargo run -p sc98-desktop --release
-cargo run -p sc98-desktop --release -- --compact
-cargo run -p sc98-desktop --release -- --compact --painter --indexed
+cargo run -p sc2000-desktop --release
+cargo run -p sc2000-desktop --release -- --compact
+cargo run -p sc2000-desktop --release -- --compact --painter --indexed
+cargo run -p sc2000-desktop --release -- --open "../samples/Filleted Plate.sc2"
 ```
 
 Drag with the left mouse button to orbit; right-drag to pan. The wheel,
@@ -35,17 +73,20 @@ select a feature; Enter opens its number dialog. Number dialogs accept
 numeric input, Backspace, Tab, Enter and Escape. Large compact dialogs have
 three fields per page; **More fields >** and Tab reach every field.
 
-The demo uses a small mounting plate with a rectangular boss. Modelling,
-file operations and feature editing await the `sc98-core` adapter; the UI
-returns commands and accepted parameters to its host. The current demo
-neither reads nor writes designs. Its File commands display a message box.
+With no `--open` the demo is a small mounting plate with a rectangular boss.
+`--open` takes a `.sc2` or `.sc98` part and shows it through `CorePart`, the
+adapter from `sc2000-core` to `sc2000-pixels`. Saving, and editing a feature,
+await the host: the UI returns commands and accepted parameters to it. The
+desktop never writes designs, and its File commands display a message box.
 
 ## Pixels: drawing and integration
 
-`sc98-pixels` is `no_std`, forbids unsafe code, and uses no heap. Its only
+`sc2000-pixels` is `no_std`, forbids unsafe code, and uses no heap. Its only
 dependency is `libm`. Font widths, all 256 glyphs and all 17 icons are const
-ports of the FreeBASIC artwork, reproduced by `python3 tools/port-art.py`.
-The Windows Standard colours, six bevel styles, dotted tree connectors,
+ports of the FreeBASIC artwork of SolidCraft 98, reproduced by
+`python3 tools/port-art.py` (the checked-in copies the test compares to are in
+`sc2000-pixels/tests/fixtures/`). The SolidCraft 2000 colours (a warmer grey face, grey-teal where
+SolidCraft 98 was navy, the art's light grey following the face), six bevel styles, dotted tree connectors,
 title gradients, menus, toolbar, MHz display, buttons, tree, timeline,
 status bar, message boxes and number dialogs follow the FreeBASIC edition.
 RGB565 quantization and the compact arrangement necessarily change some
@@ -73,7 +114,7 @@ testing between hosts. `Action::Command` identifies commands and
 `Action::Parameters` carries the accepted numeric fields. The host owns
 model mutation, file dialogs and expression evaluation. Window decorations
 are drawn; OS-style MDI dragging, resizing and multiple documents are outside
-this demo. `sc98-desktop` uses minifb's X11 backend and a persistent buffer;
+this demo. `sc2000-desktop` uses minifb's X11 backend and a persistent buffer;
 no toolkit paints any controls.
 
 The view uses the reference orthographic projection (135° yaw, 35.264°
@@ -100,10 +141,10 @@ buffer only in indexed mode. The renderer itself does not allocate. See
 Test one crate at a time:
 
 ```sh
-cargo test -p sc98-pixels --test graphics
-cargo clippy -p sc98-pixels --all-targets -- -D warnings
-cargo test -p sc98-desktop --test render
-cargo clippy -p sc98-desktop --all-targets -- -D warnings
+cargo test -p sc2000-pixels --test graphics
+cargo clippy -p sc2000-pixels --all-targets -- -D warnings
+cargo test -p sc2000-desktop --test render
+cargo clippy -p sc2000-desktop --all-targets -- -D warnings
 cargo fmt --all --check
 ```
 
@@ -118,11 +159,11 @@ exercise modal/drawer rendering and indexed output, and time a distinct
 Only regenerate baselines after reviewing the pixels:
 
 ```sh
-UPDATE_GOLDENS=1 cargo test -p sc98-pixels --test graphics
-UPDATE_SCREENSHOTS=1 cargo test -p sc98-desktop --test render screenshots_and_colour_modes
-cargo run -p sc98-desktop --release -- --screenshot docs/desktop-640x480.png
-cargo run -p sc98-desktop --release -- --compact --screenshot docs/desktop-320x240.png
-cargo run -p sc98-desktop --release -- --benchmark
+UPDATE_GOLDENS=1 cargo test -p sc2000-pixels --test graphics
+UPDATE_SCREENSHOTS=1 cargo test -p sc2000-desktop --test render screenshots_and_colour_modes
+cargo run -p sc2000-desktop --release -- --screenshot docs/desktop-640x480.png
+cargo run -p sc2000-desktop --release -- --compact --screenshot docs/desktop-320x240.png
+cargo run -p sc2000-desktop --release -- --benchmark
 ```
 
 Screenshots render the actual framebuffer to PNG without an X server. For
@@ -133,8 +174,8 @@ For a bare-metal release and a linked size probe:
 
 ```sh
 rustup target add riscv32imc-unknown-none-elf
-cargo build -p sc98-pixels --release --target riscv32imc-unknown-none-elf
-cargo build -p sc98-pixels --example pixels_size_probe --release --target riscv32imc-unknown-none-elf
+cargo build -p sc2000-pixels --release --target riscv32imc-unknown-none-elf
+cargo build -p sc2000-pixels --example pixels_size_probe --release --target riscv32imc-unknown-none-elf
 size target/riscv32imc-unknown-none-elf/release/examples/size_probe
 ```
 
@@ -148,19 +189,19 @@ UTF-8 ANSI terminal on the serial port: the board sends the picture and the
 terminal sends keys and mouse reports back. No companion program is needed.
 
 This part supplies the terminal transport and a PC demonstration. The model,
-The demonstration draws its own test card and cube; wiring it to `sc98-core` and `sc98-pixels` is the next step.
+The demonstration draws its own test card and cube; wiring it to `sc2000-core` and `sc2000-pixels` is the next step.
 
 ## Terminal screen: try it
 
 From the repository root:
 
 ```sh
-cargo build --manifest-path rust/Cargo.toml --release -p sc98-term-demo
+cargo build --manifest-path rust/Cargo.toml --release -p sc2000-term-demo
 ```
 
-Run the resulting `sc98-term-demo` binary in a terminal. Cargo puts the binary under `rust/target/release/`. With an
+Run the resulting `sc2000-term-demo` binary in a terminal. Cargo puts the binary under `rust/target/release/`. With an
 ordinary checkout outside the shared build environment, `cargo run --release
---manifest-path rust/Cargo.toml -p sc98-term-demo` also launches it.
+--manifest-path rust/Cargo.toml -p sc2000-term-demo` also launches it.
 
 Options: `--wireframe`, `--pattern`, `--256`, `--16`, `--box`, `--help`.
 True colour and nearest-neighbour sampling are the defaults. `--measure`
@@ -175,7 +216,7 @@ also sends a cursor-position probe. The demo supports up to 320x120 cells.
 
 ## Terminal screen: board integration
 
-`sc98-term` is `no_std`, has no dependencies and uses no allocation or unsafe
+`sc2000-term` is `no_std`, has no dependencies and uses no allocation or unsafe
 code. Supply a tightly packed framebuffer slice, dimensions and a `Write`
 adapter whose `write_all` sends every byte or returns an error. A slice of
 `u16` is RGB565; `Rgb` is RGB888; `Palette16` indexes the conventional ANSI
@@ -183,7 +224,7 @@ palette. Implement the small `Pixel` trait for another pixel representation
 or palette order. There is no dependency on a particular framebuffer library.
 
 ```rust
-use sc98_term::{Cell, Config, Encoder, Frame, Size, Write};
+use sc2000_term::{Cell, Config, Encoder, Frame, Size, Write};
 
 fn picture<W: Write>(serial: &mut W, pixels: &[u16; 8]) -> Result<(), W::Error> {
     // Keep this array and Encoder alive between frames. An embedded application
@@ -261,15 +302,15 @@ smaller board. The encoder never keeps a second framebuffer or cell array.
 Run checks one crate at a time:
 
 ```sh
-cargo test --manifest-path rust/Cargo.toml -p sc98-term --test terminal
-cargo test --manifest-path rust/Cargo.toml -p sc98-term-demo --test scene
-cargo clippy --manifest-path rust/Cargo.toml -p sc98-term --all-targets --all-features -- -D warnings
-cargo clippy --manifest-path rust/Cargo.toml -p sc98-term-demo --all-targets -- -D warnings
+cargo test --manifest-path rust/Cargo.toml -p sc2000-term --test terminal
+cargo test --manifest-path rust/Cargo.toml -p sc2000-term-demo --test scene
+cargo clippy --manifest-path rust/Cargo.toml -p sc2000-term --all-targets --all-features -- -D warnings
+cargo clippy --manifest-path rust/Cargo.toml -p sc2000-term-demo --all-targets -- -D warnings
 cargo fmt --manifest-path rust/Cargo.toml --all --check
 ```
 
 CI runs the complete workspace on every push, along with a release cross-build.
-`tools/terminal_smoke.py /path/to/sc98-term-demo` exercises a real Unix PTY:
+`tools/terminal_smoke.py /path/to/sc2000-term-demo` exercises a real Unix PTY:
 startup, split probe reply, Ctrl-L, resize, display mode change, mouse input,
 Ctrl-Q and exact restoration of termios state in six configurations.
 
@@ -277,8 +318,8 @@ For a linked size fixture, install the `riscv32imc-unknown-none-elf` Rust
 target and run:
 
 ```sh
-cargo build --manifest-path rust/Cargo.toml --release -p sc98-term --target riscv32imc-unknown-none-elf
-cargo build --manifest-path rust/Cargo.toml --release -p sc98-term --features size-probe --example term_size_probe --target riscv32imc-unknown-none-elf
+cargo build --manifest-path rust/Cargo.toml --release -p sc2000-term --target riscv32imc-unknown-none-elf
+cargo build --manifest-path rust/Cargo.toml --release -p sc2000-term --features size-probe --example term_size_probe --target riscv32imc-unknown-none-elf
 ```
 
 The fixture retains the encoder (both modes, all palettes), input decoder,

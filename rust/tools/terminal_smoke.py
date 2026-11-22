@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real demo in a PTY, including raw-mode restoration (Unix only).
 
-Usage: python3 rust/tools/terminal_smoke.py /path/to/sc98-term-demo
+Usage: python3 rust/tools/terminal_smoke.py /path/to/sc2000-term-demo
 No compilation is performed here; build the binary first.
 """
 import fcntl
