@@ -1,13 +1,13 @@
-{ SolidCraft 98, the Delphi Edition. Startup: splash, main window, an empty
+{ SolidCraft 2000, the Delphi Edition. Startup: splash, main window, an empty
   part (or the parts named on the command line). }
-program SolidCraft98;
+program SolidCraft2000;
 
 {$mode objfpc}{$H+}
 
 uses
   {$IFDEF UNIX}cthreads,{$ENDIF}
   Interfaces, Forms, SysUtils,
-  uModel, uDocs, fDialogs, fMain, uCommands;
+  uModel, uDocs, uStability, fDialogs, fMain, uCommands;
 
 {$R *.res}
 
@@ -32,11 +32,12 @@ var
 
 begin
   RequireDerivedFormResource := False;
-  Application.Title := 'SolidCraft 98';
+  Application.Title := 'SolidCraft 2000';
   Application.Scaled := False;
   Application.Initialize;
   Application.OnException := @TCrash(nil).Report;
   InitClock;
+  StabilityStart;
   splash := ShowSplash;
   Application.CreateForm(TMainForm, MainForm);
   SplashProgress(splash, 'Loading geometry kernel...');

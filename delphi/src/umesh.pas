@@ -1,7 +1,8 @@
 { uMesh - turns the part into triangles: for Export for Rapid Prototyping
   (.stl) and for the shaded view. A port of the Windows version's modMesh:
-  closed and outward-facing, holes cut through, and a body standing wholly
-  on another's top face joined to it. }
+  closed and outward-facing, holes cut through, fillets and chamfers up the
+  edges, sheet metal, bodies on side faces, and a body standing wholly on
+  another's top face joined to it. }
 unit uMesh;
 
 {$mode objfpc}{$H+}
@@ -49,6 +50,8 @@ var
   mLX, mLY: TDoubleArray;
   mLS, mLN: array of Integer;
   mNL: Integer;
+  mXf: TFrame;                // the frame of the body being meshed (side faces)
+  mXfOn: Boolean;
 
 procedure TriNormal(const t: TTri; out nx, ny, nz: Double);
 var
@@ -69,6 +72,12 @@ begin
   if (x1 = x2) and (y1 = y2) and (z1 = z2) then Exit;
   if (x2 = x3) and (y2 = y3) and (z2 = z3) then Exit;
   if (x3 = x1) and (y3 = y1) and (z3 = z1) then Exit;
+  if mXfOn then                        // a body on a side face: into the world
+  begin
+    ToWorld(mXf, x1, y1, z1, x1, y1, z1);
+    ToWorld(mXf, x2, y2, z2, x2, y2, z2);
+    ToWorld(mXf, x3, y3, z3, x3, y3, z3);
+  end;
   if mN >= Length(mT) then SetLength(mT, Length(mT) * 2 + 64);
   // no "with" here: Pascal ignores case, so X1 := x1 would set a field to itself
   mT[mN].X1 := x1; mT[mN].Y1 := y1; mT[mN].Z1 := z1;
@@ -208,9 +217,20 @@ begin
   ExtrudeRange(d, i, z0, z1);
   if z1 < z0 then begin t := z0; z0 := z1; z1 := t; end;
   if z1 - z0 < EPS then Exit(False);
-  no := ProfilePoints(d.F[d.F[i].Ref], ox, oy, seam, mSegs);
+  no := ProfilePoints(BottomFace(d, i), ox, oy, seam, mSegs, True);
   no := CleanOutline(ox, oy, no);
   Result := no >= 3;
+end;
+
+{ The flat part of extrude i's top (smaller than its outline if it has a
+  fillet), anticlockwise. }
+function GetTop(const d: TDesign; i: Integer; out tx, ty: TDoubleArray): Integer;
+var
+  seam: TBoolArray;
+  n: Integer;
+begin
+  n := ProfilePoints(TopFace(d, i), tx, ty, seam, mSegs, True);
+  Result := CleanOutline(tx, ty, n);
 end;
 
 function IsBody(const d: TDesign; i: Integer): Boolean;
@@ -220,27 +240,34 @@ end;
 
 function CollectHoles(const d: TDesign; i: Integer; z1: Double; out h: THoleArray): Integer;
 var
-  j, n: Integer;
-  zt, zb, r: Double;
+  j, n, q: Integer;
+  zt, zb, r, hx, hy: Double;
+  sf: TFeature;
 begin
   SetLength(h, 8);
   n := 0;
+  sf := TopFace(d, i);
   for j := i + 1 to d.Count do
-    if (d.F[j].Kind = FK_HOLE) and (d.F[j].Suppressed = 0) and RefOk(d, j) then
-    begin
-      r := d.F[j].P1 / 2;
-      if ProfileContains(d.F[d.F[i].Ref], d.F[j].X, d.F[j].Y, r) then
+    if (d.F[j].Kind = FK_HOLE) and (d.F[j].Suppressed = 0) then
+      if RefOk(d, j) and SameFrame(BodyFrame(d, j), BodyFrame(d, i)) then
       begin
-        HoleSpan(d, j, zt, zb);
-        if (zt >= z1 - EPS) and (zb <= z1 + EPS) then
+        r := d.F[j].P1 / 2;
+        for q := 0 to HoleCount(d.F[j]) - 1 do          // every hole of a pattern
         begin
-          if n >= Length(h) then SetLength(h, n * 2);
-          h[n].X := d.F[j].X; h[n].Y := d.F[j].Y; h[n].R := r;
-          h[n].ZTop := zt; h[n].ZBot := zb; h[n].Feat := j;
-          Inc(n);
+          HoleAt(d.F[j], q, hx, hy);
+          if ProfileContains(sf, hx, hy, r) then
+          begin
+            HoleSpan(d, j, zt, zb, q);
+            if (zt >= z1 - EPS) and (zb <= z1 + EPS) then
+            begin
+              if n >= Length(h) then SetLength(h, n * 2);
+              h[n].X := hx; h[n].Y := hy; h[n].R := r;
+              h[n].ZTop := zt; h[n].ZBot := zb; h[n].Feat := j;
+              Inc(n);
+            end;
+          end;
         end;
       end;
-    end;
   Result := n;
 end;
 
@@ -257,7 +284,10 @@ begin
   for j := 1 to d.Count do
     if IsBody(d, j) and GetBody(d, j, bz0, bz1, bx, by, nb) then
       for i := 1 to d.Count do
-        if (i <> j) and IsBody(d, i) and GetBody(d, i, az0, az1, ax, ay, na) then
+        if (i <> j) and IsBody(d, i) and SameFrame(BodyFrame(d, i), BodyFrame(d, j)) and
+           GetBody(d, i, az0, az1, ax, ay, na) then
+        begin
+          na := GetTop(d, i, ax, ay);
           if Abs(az1 - bz0) < EPS then
           begin
             ok := Relation(ax, ay, na, bx, by, nb) = 1;
@@ -283,6 +313,7 @@ begin
               Break;
             end;
           end;
+        end;
 end;
 
 procedure HoleWall(cx, cy, r, za, zb: Double; body: Integer);
@@ -510,15 +541,55 @@ begin
   Result := True;
 end;
 
+{ Quads between two rings of n points, the lower one at za, facing out. }
+procedure RingBand(const ax, ay: TDoubleArray; za: Double; const bx, by: TDoubleArray; zb: Double;
+  n, body: Integer);
+var
+  k, k2: Integer;
+begin
+  if zb - za < EPS then Exit;
+  for k := 0 to n - 1 do
+  begin
+    k2 := (k + 1) mod n;
+    AddTri(ax[k], ay[k], za, ax[k2], ay[k2], za, bx[k2], by[k2], zb, body);
+    AddTri(ax[k], ay[k], za, bx[k2], by[k2], zb, bx[k], by[k], zb, body);
+  end;
+end;
+
+{ The walls of a filleted extrude: up a bottom fillet, the straight sides, up
+  a top fillet, each only on the sides it takes (ExtrudeRings in uKernel).
+  Rings have the same number of points (a sharp corner is a corner of radius
+  0, all its points in one place), and the slivers between points in the same
+  place have no area and are left out. }
+procedure FilletWalls(const d: TDesign; i: Integer);
+var
+  seam: TBoolArray;
+  rz, ax, ay, bx, by: TDoubleArray;
+  rs: TFeatureArray;
+  rkey: TBoolArray;
+  n, m, nr: Integer;
+begin
+  nr := ExtrudeRings(d, i, mSegs div 4, rz, rs, rkey);
+  n := ProfilePoints(rs[0], ax, ay, seam, mSegs, True);
+  for m := 1 to nr - 1 do
+  begin
+    ProfilePoints(rs[m], bx, by, seam, mSegs, True);
+    RingBand(ax, ay, rz[m - 1], bx, by, rz[m], n, i);
+    ax := Copy(bx, 0, Length(bx)); ay := Copy(by, 0, Length(by));
+  end;
+end;
+
 procedure MeshExtrude(const d: TDesign; i: Integer);
 var
-  z0, z1, fz0, fz1, zb: Double;
-  ox, oy, fx, fy, hx, hy: TDoubleArray;
-  no, nh, j, k, k2, nf: Integer;
+  z0, z1, fz0, fz1, zb, fr: Double;
+  ox, oy, fx, fy, hx, hy, tx, ty: TDoubleArray;
+  no, nh, j, k, k2, nf, nt: Integer;
   h: THoleArray;
   inFoot: TBoolArray;
 begin
   if not GetBody(d, i, z0, z1, ox, oy, no) then Exit;
+  fr := FilletRadius(d, i);
+  nt := GetTop(d, i, tx, ty);
   nh := CollectHoles(d, i, z1, h);
   SetLength(inFoot, nh + 1);
   for k := 0 to nh do inFoot[k] := False;
@@ -538,7 +609,7 @@ begin
     end;
   for k := 0 to nh - 1 do
     if (not inFoot[k]) and (h[k].ZBot < z1 - EPS) then AddCircleLoop(h[k].X, h[k].Y, h[k].R);
-  if not CapLoops(ox, oy, no, z1, True, i) then
+  if not CapLoops(tx, ty, nt, z1, True, i) then
   begin
     mErr := mErr + FeatureName(d, i) + ' (its holes are too close together to cap). ';
     Exit;
@@ -554,12 +625,15 @@ begin
   end;
 
   // the outside walls
-  for k := 0 to no - 1 do
-  begin
-    k2 := (k + 1) mod no;
-    AddTri(ox[k], oy[k], z0, ox[k2], oy[k2], z0, ox[k2], oy[k2], z1, i);
-    AddTri(ox[k], oy[k], z0, ox[k2], oy[k2], z1, ox[k], oy[k], z1, i);
-  end;
+  if fr <= 0 then
+    for k := 0 to no - 1 do
+    begin
+      k2 := (k + 1) mod no;
+      AddTri(ox[k], oy[k], z0, ox[k2], oy[k2], z0, ox[k2], oy[k2], z1, i);
+      AddTri(ox[k], oy[k], z0, ox[k2], oy[k2], z1, ox[k], oy[k], z1, i);
+    end
+  else
+    FilletWalls(d, i);
 
   // the holes: walls facing into them, floors where they stop, and a roof
   // where one starts on this top under a body that stands on it
@@ -574,7 +648,7 @@ begin
       if inFoot[k] and (h[k].ZTop <= z1 + EPS) then HoleDisc(h[k].X, h[k].Y, h[k].R, z1, False, h[k].Feat);
     end
     else if inFoot[k] then
-      HoleDisc(h[k].X, h[k].Y, h[k].R, z1, True, h[k].Feat);
+      HoleDisc(h[k].X, h[k].Y, h[k].R, z1, True, h[k].Feat);       // a hole above that stops right here
   end;
 end;
 
@@ -619,6 +693,70 @@ begin
     end;
 end;
 
+{ ---- sheet metal: the solid ---- }
+
+{ Two triangles, corners given in an edge's own u, v, w, in order round the quad. }
+procedure Quad(ox, oy, ux, uy, vx, vy, u1, v1, w1, u2, v2, w2, u3, v3, w3, u4, v4, w4: Double; body: Integer);
+var
+  x1, y1, x2, y2, x3, y3, x4, y4: Double;
+begin
+  x1 := ox + u1 * ux + v1 * vx; y1 := oy + u1 * uy + v1 * vy;
+  x2 := ox + u2 * ux + v2 * vx; y2 := oy + u2 * uy + v2 * vy;
+  x3 := ox + u3 * ux + v3 * vx; y3 := oy + u3 * uy + v3 * vy;
+  x4 := ox + u4 * ux + v4 * vx; y4 := oy + u4 * uy + v4 * vy;
+  AddTri(x1, y1, w1, x2, y2, w2, x3, y3, w3, body);
+  AddTri(x1, y1, w1, x3, y3, w3, x4, y4, w4, body);
+end;
+
+{ A strip of sheet swept along an edge from u = ua to u = ub: its outside
+  face, its inside face, its two long edges, and its two ends. }
+procedure Prism(ox, oy, ux, uy, vx, vy, ua, ub: Double; const ov, ow, iv, iw: TDoubleArray; m, body: Integer);
+var
+  j: Integer;
+begin
+  for j := 0 to m - 2 do
+  begin
+    Quad(ox, oy, ux, uy, vx, vy, ua, ov[j], ow[j], ub, ov[j], ow[j], ub, ov[j + 1], ow[j + 1], ua, ov[j + 1], ow[j + 1], body);
+    Quad(ox, oy, ux, uy, vx, vy, ua, iv[j], iw[j], ua, iv[j + 1], iw[j + 1], ub, iv[j + 1], iw[j + 1], ub, iv[j], iw[j], body);
+    Quad(ox, oy, ux, uy, vx, vy, ua, ov[j], ow[j], ua, ov[j + 1], ow[j + 1], ua, iv[j + 1], iw[j + 1], ua, iv[j], iw[j], body);
+    Quad(ox, oy, ux, uy, vx, vy, ub, ov[j], ow[j], ub, iv[j], iw[j], ub, iv[j + 1], iw[j + 1], ub, ov[j + 1], ow[j + 1], body);
+  end;
+  Quad(ox, oy, ux, uy, vx, vy, ua, ov[0], ow[0], ua, iv[0], iw[0], ub, iv[0], iw[0], ub, ov[0], ow[0], body);
+  Quad(ox, oy, ux, uy, vx, vy, ua, ov[m - 1], ow[m - 1], ub, ov[m - 1], ow[m - 1], ub, iv[m - 1], iw[m - 1], ua, iv[m - 1], iw[m - 1], body);
+end;
+
+procedure SM_Mesh(const d: TDesign; i: Integer);
+const
+  MESH_STEPS = 8;
+var
+  f: TFeature;
+  x, y, w, h, z0, z1, ox, oy, ux, uy, vx, vy, ua, ub: Double;
+  ov, ow, iv, iw: TDoubleArray;
+  m, nb, first: Integer;
+begin
+  f := d.F[i];
+  first := mN;
+  case f.Kind of
+    FK_SM_BASE:
+      begin
+        SMBaseBox(d, i, x, y, w, h, z0, z1);
+        // the plate as a flange of no bend: a box along the front edge
+        SetLength(ov, 2); SetLength(ow, 2); SetLength(iv, 2); SetLength(iw, 2);
+        ov[0] := 0; ov[1] := -h; ow[0] := z0; ow[1] := z0;
+        iv[0] := 0; iv[1] := -h; iw[0] := z1; iw[1] := z1;
+        Prism(x, y, 1, 0, 0, -1, 0, w, ov, ow, iv, iw, 2, i);
+      end;
+    FK_SM_EDGE:
+      begin
+        m := SMSection(d, i, SMIsFlat(d, f.Ref), MESH_STEPS, ov, ow, iv, iw, nb);
+        SMEdgeFrame(d, f.Ref, Round(f.X), ox, oy, ux, uy, vx, vy);
+        ua := SMMargin(d, i); ub := SMSideLength(d, f.Ref, Round(f.X)) - ua;
+        Prism(ox, oy, ux, uy, vx, vy, ua, ub, ov, ow, iv, iw, m, i);
+      end;
+  end;
+  if mN > first then OrientOutward(first, mN);
+end;
+
 function MeshDesign(const d: TDesign; out t: TTriArray; nSegs: Integer; out sErr: string): Integer;
 var
   i, first: Integer;
@@ -628,6 +766,9 @@ begin
   FindJoins(d);
   for i := 1 to d.Count do
     if (d.F[i].Suppressed = 0) and RefOk(d, i) then
+    begin
+      mXf := BodyFrame(d, i);              // built in its own frame, added in the world's
+      mXfOn := ((d.F[i].Kind = FK_EXTRUDE) or (d.F[i].Kind = FK_REVOLVE)) and not IsLevel(mXf);
       case d.F[i].Kind of
         FK_EXTRUDE: MeshExtrude(d, i);
         FK_REVOLVE:
@@ -636,7 +777,10 @@ begin
             MeshRevolve(d, i, nSegs);
             if mN > first then OrientOutward(first, mN);
           end;
+        FK_SM_BASE, FK_SM_EDGE: SM_Mesh(d, i);
       end;
+    end;
+  mXfOn := False;
   t := Copy(mT, 0, mN);
   sErr := mErr;
   Result := mN;

@@ -10,7 +10,7 @@ interface
 uses Classes, SysUtils, Forms, Controls, StdCtrls, ExtCtrls, Graphics;
 
 const
-  MAX_FIELDS = 7;
+  MAX_FIELDS = 9;
 
 var
   ParamValue: array[0..MAX_FIELDS - 1] of Double;
@@ -20,7 +20,9 @@ var
   OK; the numbers are in ParamValue. }
 function AskParams(const ATitle, APrompts, ADefaults: string): Boolean;
 procedure ShowAbout;
-procedure ShowFatal;
+{ The blue screen: with Turbo on, a divide by zero; AScheduled, the one
+  SolidCraft 2000 does every 15 minutes or so. }
+procedure ShowFatal(AScheduled: Boolean = False);
 { Shows the copy of AName, ABytes long. True if it got to the last disk. }
 function RunFloppy(const AName: string; ABytes: Double): Boolean;
 function ShowSplash: TForm;
@@ -178,23 +180,33 @@ end;
 type
   TFatalForm = class(TForm)
   public
+    Scheduled: Boolean;
     procedure DoPaint(Sender: TObject);
     procedure DoKey(Sender: TObject; var Key: Word; Shift: TShiftState);
+    procedure DoClick(Sender: TObject);
   end;
 
 procedure TFatalForm.DoPaint(Sender: TObject);
 const
-  Lines: array[0..8] of string = (
+  DivLines: array[0..8] of string = (
     'A fatal exception 0E has occurred at 0028:SOLIDCRAFT+00000D1V0.',
     'Something somewhere was divided by zero, which even a Pascal program',
     'knows better than to do.', '',
     'The current part will not be terminated. It is fine. It was',
     'never in any danger.', '',
-    '*  Press any key to return to SolidCraft 98.',
+    '*  Press any key to return to SolidCraft 2000.',
     '*  Then type a number that isn''t zero.');
+  SchedLines: array[0..7] of string = (
+    'A fatal exception 0E has occurred at 0028:C0FFEE00 in VXD FILLET(01) +',
+    '00002000. This was called from 0028:C0012000 in VXD SHEETMTL(03) +',
+    '00000D1V. It has been about fifteen minutes, so this was expected.', '',
+    'Your part has not been terminated. Nothing was lost. It never is.', '',
+    '*  Press any key to return to SolidCraft 2000.',
+    '*  To stop this happening, install the Stability Pack (Help menu).');
 var
   c: TCanvas;
-  i, y, x, tw: Integer;
+  i, y, x, tw, n: Integer;
+  ln: string;
 begin
   c := Canvas;
   c.Brush.Color := $AA0000;
@@ -203,7 +215,9 @@ begin
   c.Font.Size := 13;
   c.Font.Style := [fsBold];
   y := ClientHeight div 2 - 160;
-  x := (ClientWidth - c.TextWidth(Lines[1])) div 2;
+  if Scheduled then x := (ClientWidth - c.TextWidth(SchedLines[0])) div 2
+  else x := (ClientWidth - c.TextWidth(DivLines[1])) div 2;
+  if x < 8 then x := 8;
   tw := c.TextWidth(' SolidCraft ');
   c.Brush.Color := $AAAAAA;
   c.FillRect((ClientWidth - tw) div 2 - 4, y, (ClientWidth + tw) div 2 + 4, y + c.TextHeight('X') + 4);
@@ -211,8 +225,12 @@ begin
   c.TextOut((ClientWidth - tw) div 2, y + 2, ' SolidCraft ');
   c.Brush.Style := bsClear;
   c.Font.Color := clWhite;
-  for i := 0 to 8 do
-    c.TextOut(x, y + 50 + i * 26, Lines[i]);
+  if Scheduled then n := 7 else n := 8;
+  for i := 0 to n do
+  begin
+    if Scheduled then ln := SchedLines[i] else ln := DivLines[i];
+    c.TextOut(x, y + 50 + i * 26, ln);
+  end;
   c.TextOut((ClientWidth - c.TextWidth('Press any key to continue _')) div 2, y + 50 + 10 * 26, 'Press any key to continue _');
   c.Brush.Style := bsSolid;
 end;
@@ -222,12 +240,18 @@ begin
   ModalResult := mrOk;
 end;
 
-procedure ShowFatal;
+procedure TFatalForm.DoClick(Sender: TObject);
+begin
+  ModalResult := mrOk;
+end;
+
+procedure ShowFatal(AScheduled: Boolean);
 var
   f: TFatalForm;
 begin
   f := TFatalForm.CreateNew(Application);
   try
+    f.Scheduled := AScheduled;
     f.BorderStyle := bsNone;
     f.SetBounds(0, 0, Screen.Width, Screen.Height);
     f.WindowState := wsFullScreen;
@@ -235,6 +259,7 @@ begin
     f.KeyPreview := True;
     f.OnPaint := @f.DoPaint;
     f.OnKeyDown := @f.DoKey;
+    f.OnClick := @f.DoClick;
     f.ShowModal;
   finally
     f.Free;
@@ -386,7 +411,7 @@ begin
   GradientV(c, 0, 0, ClientWidth, ClientHeight, $A00000, $200000);
   c.Brush.Style := bsClear;
   c.Font.Style := [fsBold]; c.Font.Size := 11; c.Font.Color := clWhite;
-  c.TextOut(16, 12, 'SolidCraft 98 Setup');
+  c.TextOut(16, 12, 'SolidCraft 2000 Setup');
   c.Font.Style := []; c.Font.Size := 9;
   if Pct > 100 then s := 'Copying more than all of it...'
   else if Pct > 30 then s := 'A newer version exists. Copying the older one over it anyway...'
@@ -422,9 +447,9 @@ begin
     Repaint;
     MsgBox('Setup has updated your system files.' + LineEnding + LineEnding +
       'Please restart Windows to complete setup.' + LineEnding +
-      '(Excel may not start afterwards. That''s normal.)', MB_EXCLAMATION, 'SolidCraft 98 Setup');
+      '(Excel may not start afterwards. That''s normal.)', MB_EXCLAMATION, 'SolidCraft 2000 Setup');
     MsgBox('Just kidding. Nothing was copied and nothing needs restarting.' + LineEnding +
-      'Your Excel is fine.', MB_INFO, 'SolidCraft 98 Setup');
+      'Your Excel is fine.', MB_INFO, 'SolidCraft 2000 Setup');
     ModalResult := mrOk;
   end;
 end;
@@ -435,7 +460,7 @@ var
 begin
   f := TSetupForm.CreateNew(Application);
   try
-    f.Caption := 'SolidCraft 98 Setup';
+    f.Caption := 'SolidCraft 2000 Setup';
     f.BorderStyle := bsDialog;
     f.Position := poMainFormCenter;
     f.ClientWidth := 400; f.ClientHeight := 200;
@@ -468,18 +493,21 @@ type
   end;
 
 const
-  CreditLines: array[0..32] of string = (
-    'SOLIDCRAFT 98', 'THE DELPHI EDITION', '',
+  CreditLines: array[0..41] of string = (
+    'SOLIDCRAFT 2000', 'THE DELPHI EDITION', '',
     'A FORTY-THOUSAND-LINE PRODUCTION', '', '',
     'GEOMETRY KERNEL', 'UKERNEL.PAS (ALL OF IT)', '',
     'CONSTRAINT SOLVER', 'THE VARIANT SQUAD', '',
     'CHIEF REGENERATE CLICKER', 'PRESS F5 THREE TIMES', '',
-    'ICONS', '16 COLOURS, NO UNDO', '',
+    'FILLETS', 'A QUARTER OF A CIRCLE, FOUR TIMES', '',
+    'SHEET METAL', 'SOME ASSEMBLY REQUIRED', '',
+    'PERSONALIZED MENUS', 'WE HID THIS LINE', '',
+    'ICONS', '16 COLOURS, TWENTY LEVELS OF UNDO', '',
     'FILE FORMAT', 'A PACKED RECORD, BYTE FOR BYTE', '',
     'QUALITY ASSURANCE', 'THE MACHINE SHOP', '',
     'SPECIAL THANKS', 'THE ONE PC NOBODY IS ALLOWED TO UPDATE', '',
     'NO PARTS WERE HARMED IN THE MAKING OF THIS SOFTWARE', '', '', '', '', 'PRESS ANY KEY');
-  Msg = '   GREETINGS TO EVERYONE STILL RUNNING WINDOWS 98 SE ...  TURBO OFF IS FASTER THAN TURBO ON ...  BEGIN END. ...  BEST VIEWED AT 800 X 600 ...  ';
+  Msg = '   GREETINGS TO EVERYONE WHO SURVIVED Y2K ...  STILL NOT A WORD ABOUT 2038 ...  TURBO OFF IS FASTER THAN TURBO ON ...  BEGIN END. ...  BEST VIEWED AT 1024 X 768 ...  ';
 
 procedure TCreditsForm.DoPaint(Sender: TObject);
 var
@@ -702,8 +730,8 @@ type
 
 procedure TAboutForm.LogoPaint(Sender: TObject);
 begin
-  GradientV(Logo.Canvas, 0, 0, 96, 96, $A00000, $000000);
-  DrawLogo(Logo.Canvas, 46, 40, 11, clYellow);
+  GradientV(Logo.Canvas, 0, 0, 96, 96, TEAL_LIGHT, TEAL_DARK);
+  DrawLogo2000(Logo.Canvas, 46, 36, 11, clWhite);
 end;
 
 { Turbo on, Shift-click the logo: a setup program "updates" MSCOMCTL.OCX. }
@@ -799,7 +827,7 @@ begin
       'Built with Object Pascal. Compiles in 0.4 seconds.' + LineEnding + '(It really does.)' + LineEnding + LineEnding +
       'This product is licensed to:' + LineEnding + '    Machine Shop, Back Office PC' + LineEnding + LineEnding +
       {$IFDEF WINDOWS}'Physical memory available to Windows:'{$ELSE}'Physical memory available to Linux:'{$ENDIF} +
-      LineEnding + '    ' + MemoryKB + ' KB';
+      LineEnding + '    ' + MemoryKB + ' KB' + LineEnding + LineEnding + 'System stability:  Uptime: excellent';
     bev := TBevel.Create(f); bev.Parent := f; bev.Shape := bsTopLine; bev.SetBounds(16, 274, 488, 2);
     l := TLabel.Create(f); l.Parent := f; l.AutoSize := False; l.SetBounds(16, 284, 390, 40); l.WordWrap := True;
     l.Caption := 'Warning: this computer program is protected by a sense of humour.';
@@ -817,34 +845,47 @@ type
   TSplashForm = class(TForm)
   public
     Msg: string;
+    BarPos: Integer;
     procedure DoPaint(Sender: TObject);
   end;
 
 procedure TSplashForm.DoPaint(Sender: TObject);
+const
+  BAND_H = 116;
 var
   c: TCanvas;
+  x, w: Integer;
 begin
   c := Canvas;
-  GradientV(c, 0, 0, ClientWidth, ClientHeight, $800000, $000000);
-  DrawLogo(c, 90, 70, 26, clYellow);
+  w := ClientWidth;
+  c.Brush.Color := FACE_2000;
+  c.FillRect(0, 0, w, ClientHeight);
+  GradientH(c, 0, 0, w, BAND_H - 1, TEAL_DARK, TEAL_LIGHT);
+  DrawLogo2000(c, 62, 34, 15, clWhite);
   c.Brush.Style := bsClear;
-  c.Font.Name := 'Times New Roman';
-  c.Font.Style := [fsBold, fsItalic];
-  c.Font.Size := 30; c.Font.Color := clWhite;
-  c.TextOut(190, 40, 'SolidCraft');
-  c.Font.Size := 40; c.Font.Color := clYellow;
-  c.TextOut(330, 84, '98');
-  c.Font.Name := 'Arial'; c.Font.Style := []; c.Font.Size := 10; c.Font.Color := $C0C0C0;
-  c.TextOut(192, 120, APP_EDITION);
-  c.Font.Size := 9;
-  c.Font.Color := clWhite; c.TextOut(16, 200, Msg);
-  c.Font.Color := $C0C0C0;
-  c.TextOut(16, 230, APP_VERSION + '  ' + APP_BUILD);
-  c.TextOut(16, 246, 'Copyright (C) 1998-1999 SolidCraft Software. Made with Line and Ellipse.');
-  c.Brush.Style := bsSolid;
-  c.Pen.Color := clGray;
+  c.Font.Name := 'Arial'; c.Font.Style := [fsBold]; c.Font.Size := 24; c.Font.Color := clWhite;
+  c.TextOut(138, 14, 'SolidCraft');
+  c.Font.Name := 'Arial Black'; c.Font.Size := 34; c.Font.Color := RGBToColor(255, 236, 140);
+  c.TextOut(136, 44, '2000');
+  DrawStarburst(c, 382, 50, 44, 'NEW!', 'Fillets!');
+  // the thin bar under the band, with a lighter stretch that moves a step each time something loads
+  GradientH(c, 1, BAND_H, w - 2, 5, TEAL_LIGHT, TEAL_DARK);
+  x := (BarPos * 37) mod w;
+  GradientH(c, x, BAND_H, 60, 5, clWhite, TEAL_LIGHT);
   c.Brush.Style := bsClear;
-  c.Rectangle(0, 0, ClientWidth, ClientHeight);
+  c.Font.Name := 'Arial'; c.Font.Style := [fsBold]; c.Font.Size := 10; c.Font.Color := RGBToColor(0, 56, 64);
+  c.TextOut(18, 130, APP_EDITION);
+  c.Font.Style := []; c.Font.Size := 8; c.Font.Color := RGBToColor(64, 64, 64);
+  c.TextOut(18, 148, 'Built on 98 technology');
+  c.TextOut(18, 236, APP_VERSION + '  ' + APP_BUILD);
+  c.TextOut(18, 252, 'Copyright (C) 1998-2000 SolidCraft Software. Made with Line and Ellipse.');
+  c.Font.Color := clBlack;
+  c.TextOut(18, 197, Msg);
+  DrawY2KBadge(c, 392, 196, 32);
+  c.Font.Name := 'Arial'; c.Font.Style := []; c.Font.Size := 7; c.Font.Color := RGBToColor(96, 96, 96);
+  c.TextOut(300, 266, '* tested until 19 January 2038');
+  c.Pen.Color := RGBToColor(64, 64, 64);
+  c.Rectangle(0, 0, w, ClientHeight);
   c.Brush.Style := bsSolid;
 end;
 
@@ -868,6 +909,7 @@ var
   t: QWord;
 begin
   TSplashForm(f).Msg := s;
+  Inc(TSplashForm(f).BarPos);
   f.Repaint;
   t := GetTickCount64;
   while GetTickCount64 - t < 350 do

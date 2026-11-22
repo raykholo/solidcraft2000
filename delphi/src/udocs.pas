@@ -11,7 +11,8 @@ uses uModel;
 
 const
   MAX_DOCS = 16;
-  PART_EXT = 'sc98';
+  PART_EXT = 'sc2';
+  UNDO_LEVELS = 20;           // like Office 2000. Nobody will ever need more
   FLOPPY_BYTES = 1457664;      // a formatted 3 1/2" HD floppy
 
   MB_OK = 0; MB_OKCANCEL = 1; MB_YESNOCANCEL = 3; MB_YESNO = 4;
@@ -38,7 +39,7 @@ function DocTitle(i: Integer): string;
 function FileTitle(const APath: string): string;
 
 { VB's MsgBox, with the same flags and answers. }
-function MsgBox(const APrompt: string; AFlags: Integer = MB_OK; const ATitle: string = 'SolidCraft 98'): Integer;
+function MsgBox(const APrompt: string; AFlags: Integer = MB_OK; const ATitle: string = 'SolidCraft 2000'): Integer;
 
 function LedDigits: string;
 function OrbitFrameInterval: Double;
@@ -48,6 +49,19 @@ function ClockNow: TDateTime;
   rolls over the way a two-digit year does. True if it just happened. }
 function ClockTick: Boolean;
 function SolverConverges(var ATries: Integer): Boolean;
+
+{ Undo and Redo (Service Pack 1), twenty levels per part: before every change
+  the whole part is copied onto the undo stack. Undo swaps the part with the
+  top of that stack, Redo swaps it back. }
+procedure HistoryClear(slot: Integer);
+{ Part slot was "before" until a change described by AWhat ("Add Extrude2").
+  Any redo history is gone: that's how a history works. }
+procedure HistoryRemember(slot: Integer; const before: TDesign; const AWhat: string);
+{ Put the part back as it was before its last change. Returns what was undone, or ''. }
+function HistoryUndo(slot: Integer): string;
+function HistoryRedo(slot: Integer): string;
+function CanUndo(slot: Integer): Boolean;
+function CanRedo(slot: Integer): Boolean;
 
 implementation
 
@@ -80,6 +94,7 @@ begin
       DocPath[i] := '';
       DocDirty[i] := False;
       DocInUse[i] := True;
+      HistoryClear(i);
       Exit(i);
     end;
   Result := 0;
@@ -186,6 +201,93 @@ begin
   ATries := 0;
   MsgBox('Converged. See? Variant works.', MB_INFO, 'Constraint Solver');
   Result := True;
+end;
+
+type
+  TStack = array[1..UNDO_LEVELS] of TDesign;
+  TWhat = array[1..UNDO_LEVELS] of string;
+
+var
+  UndoS, RedoS: array[1..MAX_DOCS] of TStack;
+  UndoW, RedoW: array[1..MAX_DOCS] of TWhat;
+  UndoN, RedoN: array[1..MAX_DOCS] of Integer;
+
+procedure HistoryClear(slot: Integer);
+begin
+  if (slot < 1) or (slot > MAX_DOCS) then Exit;
+  UndoN[slot] := 0;
+  RedoN[slot] := 0;
+end;
+
+{ Onto a full stack, the oldest level falls off the bottom. }
+procedure Push(var st: TStack; var wh: TWhat; var n: Integer; const d: TDesign; const AWhat: string);
+var
+  k: Integer;
+begin
+  if n >= UNDO_LEVELS then
+  begin
+    for k := 1 to UNDO_LEVELS - 1 do
+    begin
+      st[k] := st[k + 1];
+      wh[k] := wh[k + 1];
+    end;
+    n := UNDO_LEVELS - 1;
+  end;
+  Inc(n);
+  st[n] := d;
+  wh[n] := AWhat;
+end;
+
+procedure HistoryRemember(slot: Integer; const before: TDesign; const AWhat: string);
+begin
+  Push(UndoS[slot], UndoW[slot], UndoN[slot], before, AWhat);
+  RedoN[slot] := 0;
+end;
+
+{ The features come back; the part keeps the name it's saved under now. }
+procedure Restore(slot: Integer; const t: TDesign);
+var
+  ttl: string;
+begin
+  ttl := Docs[slot].Title;
+  Docs[slot] := t;
+  Docs[slot].Title := ttl;
+end;
+
+function HistoryUndo(slot: Integer): string;
+var
+  t: TDesign;
+begin
+  Result := '';
+  if UndoN[slot] = 0 then Exit;
+  Result := UndoW[slot][UndoN[slot]];
+  Push(RedoS[slot], RedoW[slot], RedoN[slot], Docs[slot], Result);
+  t := UndoS[slot][UndoN[slot]];
+  Dec(UndoN[slot]);
+  Restore(slot, t);
+end;
+
+function HistoryRedo(slot: Integer): string;
+var
+  t: TDesign;
+begin
+  Result := '';
+  if RedoN[slot] = 0 then Exit;
+  Result := RedoW[slot][RedoN[slot]];
+  Push(UndoS[slot], UndoW[slot], UndoN[slot], Docs[slot], Result);
+  t := RedoS[slot][RedoN[slot]];
+  Dec(RedoN[slot]);
+  Restore(slot, t);
+end;
+
+function CanUndo(slot: Integer): Boolean;
+begin
+  Result := (slot >= 1) and (slot <= MAX_DOCS) and (UndoN[slot] > 0);
+end;
+
+function CanRedo(slot: Integer): Boolean;
+begin
+  Result := (slot >= 1) and (slot <= MAX_DOCS) and (RedoN[slot] > 0);
 end;
 
 initialization

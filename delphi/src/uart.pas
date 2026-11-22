@@ -9,10 +9,14 @@ interface
 uses Graphics, Controls, ImgList;
 
 const
-  APP_NAME = 'SolidCraft 98';
+  APP_NAME = 'SolidCraft 2000';
   APP_EDITION = 'Delphi Edition';
-  APP_BUILD = 'Build 1998.1023';
+  APP_BUILD = 'Build 2000.1122';
   APP_VERSION = 'Version 1.2.0';
+
+  TEAL_DARK = $585000;         // RGB(0, 80, 88)
+  TEAL_LIGHT = $B4AA78;        // RGB(120, 170, 180)
+  FACE_2000 = $C8D0D4;         // RGB(212, 208, 200), the warm grey
 
 var
   QB: array[0..15] of TColor;
@@ -28,8 +32,16 @@ procedure GradientV(c: TCanvas; x, y, w, h: Integer; c1, c2: TColor);
 procedure GradientH(c: TCanvas; x, y, w, h: Integer; c1, c2: TColor);
 { The logo: an isometric block with a hole in the top (our own art). }
 procedure DrawLogo(c: TCanvas; ox, oy: Integer; s: Double; col: TColor);
+{ The 2000 logo: the same block, with its top edges filleted, and the hole. }
+procedure DrawLogo2000(c: TCanvas; ox, oy: Integer; s: Double; col: TColor);
+{ The box-art starburst: "NEW! Fillets!". }
+procedure DrawStarburst(c: TCanvas; cx, cy, r: Integer; const ALine1, ALine2: string);
+{ A gold seal saying the program will still work on 1 January 2000. }
+procedure DrawY2KBadge(c: TCanvas; cx, cy, r: Integer);
 
 implementation
+
+uses Types;
 
 {$I icondata.inc}
 
@@ -156,6 +168,118 @@ begin
   c.Ellipse(hx - rx, hy - ry, hx + rx, hy + ry);
   c.Brush.Style := bsSolid;
   c.Pen.Width := 1;
+end;
+
+procedure DrawLogo2000(c: TCanvas; ox, oy: Integer; s: Double; col: TColor);
+const
+  R = 0.45; W = 4; D = 3; H = 1.5;
+  CX: array[0..3] of Double = (0, W, W, 0);
+  CY: array[0..3] of Double = (0, 0, D, D);
+  SX: array[0..3] of Double = (1, -1, -1, 1);
+  SY: array[0..3] of Double = (1, 1, -1, -1);
+var
+  i, k, j, x1, y1, x2, y2, hx, hy, rx, ry: Integer;
+  zf, a0, a1: Double;
+begin
+  zf := H - R;
+  c.Pen.Color := col;
+  c.Pen.Width := 2;
+  for i := 0 to 3 do
+  begin
+    k := (i + 1) mod 4;
+    // bottom, the line where the fillet starts, and the smaller top
+    IsoPt(CX[i], CY[i], 0, s, ox, oy, x1, y1);
+    IsoPt(CX[k], CY[k], 0, s, ox, oy, x2, y2);
+    c.Line(x1, y1, x2, y2);
+    IsoPt(CX[i], CY[i], zf, s, ox, oy, x1, y1);
+    IsoPt(CX[k], CY[k], zf, s, ox, oy, x2, y2);
+    c.Line(x1, y1, x2, y2);
+    IsoPt(CX[i] + SX[i] * R, CY[i] + SY[i] * R, H, s, ox, oy, x1, y1);
+    IsoPt(CX[k] + SX[k] * R, CY[k] + SY[k] * R, H, s, ox, oy, x2, y2);
+    c.Line(x1, y1, x2, y2);
+    // the upright edge, and the quarter circle over the corner
+    IsoPt(CX[i], CY[i], 0, s, ox, oy, x1, y1);
+    IsoPt(CX[i], CY[i], zf, s, ox, oy, x2, y2);
+    c.Line(x1, y1, x2, y2);
+    for j := 1 to 6 do
+    begin
+      a0 := (Pi / 2) * (j - 1) / 6;
+      a1 := (Pi / 2) * j / 6;
+      IsoPt(CX[i] + SX[i] * R * (1 - Cos(a0)), CY[i] + SY[i] * R * (1 - Cos(a0)), zf + R * Sin(a0), s, ox, oy, x1, y1);
+      IsoPt(CX[i] + SX[i] * R * (1 - Cos(a1)), CY[i] + SY[i] * R * (1 - Cos(a1)), zf + R * Sin(a1), s, ox, oy, x2, y2);
+      c.Line(x1, y1, x2, y2);
+    end;
+  end;
+  IsoPt(W / 2, D / 2, H, s, ox, oy, hx, hy);
+  rx := Round(s * 0.7); ry := Round(s * 0.7 * 0.55);
+  c.Brush.Style := bsClear;
+  c.Ellipse(hx - rx, hy - ry, hx + rx, hy + ry);
+  c.Brush.Style := bsSolid;
+  c.Pen.Width := 1;
+end;
+
+procedure DrawStarburst(c: TCanvas; cx, cy, r: Integer; const ALine1, ALine2: string);
+const
+  SPIKES = 16;
+var
+  pts: array[0..2 * SPIKES - 1] of TPoint;
+  i: Integer;
+  a, rr: Double;
+begin
+  for i := 0 to 2 * SPIKES - 1 do
+  begin
+    a := Pi * i / SPIKES - Pi / 2 + 0.12;
+    if i mod 2 = 0 then rr := r else rr := r * 0.74;
+    pts[i].X := cx + Round(rr * Cos(a));
+    pts[i].Y := cy + Round(rr * Sin(a));
+  end;
+  c.Brush.Color := RGBToColor(255, 214, 0);
+  c.Pen.Color := RGBToColor(200, 40, 0);
+  c.Pen.Width := 1;
+  c.Polygon(pts);
+  c.Brush.Style := bsClear;
+  c.Font.Name := 'Arial';
+  c.Font.Style := [fsBold];
+  c.Font.Color := RGBToColor(200, 0, 0);
+  c.Font.Size := 11;
+  c.TextOut(cx - c.TextWidth(ALine1) div 2, cy - c.TextHeight(ALine1) + 1, ALine1);
+  c.Font.Size := 9;
+  c.TextOut(cx - c.TextWidth(ALine2) div 2, cy + 1, ALine2);
+  c.Font.Style := [];
+  c.Brush.Style := bsSolid;
+end;
+
+procedure DrawY2KBadge(c: TCanvas; cx, cy, r: Integer);
+var
+  pts: array[0..39] of TPoint;
+  i: Integer;
+  a, rr: Double;
+  s: string;
+begin
+  for i := 0 to 39 do
+  begin
+    a := 2 * Pi * i / 40;
+    if i mod 2 = 0 then rr := r else rr := r * 0.9;
+    pts[i].X := cx + Round(rr * Cos(a));
+    pts[i].Y := cy + Round(rr * Sin(a));
+  end;
+  c.Brush.Color := RGBToColor(230, 180, 48);
+  c.Pen.Color := RGBToColor(156, 108, 24);
+  c.Pen.Width := 1;
+  c.Polygon(pts);
+  c.Brush.Style := bsClear;
+  c.Ellipse(cx - Round(r * 0.72), cy - Round(r * 0.72), cx + Round(r * 0.72), cy + Round(r * 0.72));
+  c.Font.Name := 'Arial';
+  c.Font.Style := [fsBold];
+  c.Font.Color := RGBToColor(64, 32, 0);
+  c.Font.Size := 12;
+  s := 'Y2K';
+  c.TextOut(cx - c.TextWidth(s) div 2, cy - c.TextHeight(s) + 3, s);
+  c.Font.Size := 6;
+  s := 'COMPLIANT*';
+  c.TextOut(cx - c.TextWidth(s) div 2, cy + 2, s);
+  c.Font.Style := [];
+  c.Brush.Style := bsSolid;
 end;
 
 initialization

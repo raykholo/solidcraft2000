@@ -1,16 +1,22 @@
 #!/bin/bash
-# Runs SolidCraft 98 on a virtual screen and drives it with a script.
-# Usage: podman run --rm -v "$PWD":/w:Z -w /w sc98-lz-x86 bash tests/x11.sh tests/ui-basic.sh [args]
+# Runs SolidCraft 2000 on a virtual screen and drives it with a script.
+# Usage, from delphi/ (the samples are in ../samples):
+#   podman run --rm -v "$PWD/..":/r:Z -w /r/delphi sc98-lz-x86 bash tests/x11.sh tests/ui-basic.sh [args]
 # The script is sourced; it can use: key, type, click, dblclick, shot, wait, win.
 set -u
 STEPS=$1; shift
 OUT=tests/out
 mkdir -p "$OUT"
 export DISPLAY=:77
+# a home of its own: Documents for the flat patterns, and the Stability Pack's setting
+export HOME=$(mktemp -d)
+mkdir -p "$HOME/Documents"
+export XDG_CONFIG_HOME=$HOME/.config
+HERE=$PWD
 Xvfb :77 -screen 0 1024x768x24 >/dev/null 2>&1 &
 XPID=$!
 sleep 1
-./build/SolidCraft98 "$@" >"$OUT/app.log" 2>&1 &
+./build/SolidCraft2000 "$@" >"$OUT/app.log" 2>&1 &
 APP=$!
 sleep 6
 wait_s() { sleep "$1"; }
