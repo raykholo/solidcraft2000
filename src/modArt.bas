@@ -23,7 +23,7 @@ Private Declare Function DeleteObject Lib "gdi32" (ByVal hObject As Long) As Lon
 
 Public Const APP_NAME As String = "SolidCraft 2000"
 Public Const APP_EDITION As String = "Professional Edition"
-Public Const APP_BUILD As String = "Build 2000.1122, Service Pack 1"
+Public Const APP_BUILD As String = "Build 2000.1123, Service Pack 1"
 
 Public Function AppVersion() As String
     AppVersion = "Version " & App.Major & "." & App.Minor & "." & App.Revision

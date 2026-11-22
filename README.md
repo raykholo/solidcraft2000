@@ -37,17 +37,36 @@ and by brett19, who asked that it blue-screen every 15 minutes or so. It does.
 ## Getting it
 
 Download it from the [latest release](https://github.com/raykholo/solidcraft2000/releases/latest):
-`SolidCraft2000-1.1.zip`. Unzip it anywhere and run `SolidCraft2000.exe`. One
+`SolidCraft2000-1.2.zip`. Unzip it anywhere and run `SolidCraft2000.exe`. One
 EXE, nothing to install, like SolidCraft 98. It runs on Windows 10 and 11. The
 EXE isn't signed, so Windows may say it "protected your PC": choose More info,
 then Run anyway.
 
-The release also has `SolidCraft2000-1.1-floppy.img`, the whole thing on one
+The release also has `SolidCraft2000-1.2-floppy.img`, the whole thing on one
 1.44 MB floppy disk, and `SHA256SUMS.txt`. Every build on the
 [Actions tab](https://github.com/raykholo/solidcraft2000/actions) keeps its EXE
 too (artifact `exe`), for the newest one between releases.
 
 Like SolidCraft 98, it still fits on one floppy, packed with UPX.
+
+## Other editions
+
+SolidCraft 98 came in other editions, so SolidCraft 2000 does too: the same
+parts, the same `.sc2` and `.sc98` files byte for byte, in two more languages
+from the period (or near enough). Both are on the
+[Releases page](https://github.com/raykholo/solidcraft2000/releases/latest) next
+to the Windows version, with `SHA256SUMS-editions.txt`. New in 1.2.
+
+| Edition | Runs on | Written in | Download |
+|---|---|---|---|
+| [Delphi Edition](delphi/) | Windows, ReactOS, Linux, Raspberry Pi | Object Pascal (Free Pascal and Lazarus) | `SolidCraft2000-Delphi-1.2.zip` |
+| [Linux and Raspberry Pi](freebasic/) | Linux, and a Raspberry Pi from 2014 (ARMv6) | FreeBASIC, every pixel drawn by hand | `SolidCraft2000-Linux-1.2.tar.gz` |
+
+Each edition's README says what it can't do yet, the 2000 way.
+
+The [Embedded Edition preview](rust/) is SolidCraft 2000 in Rust, `no_std`,
+for small screens: it reads and writes `.sc2` files, fillets and chamfers
+included, and shows a part at 640 x 480 or 320 x 240. It doesn't edit yet.
 
 ## New in Service Pack 1
 
