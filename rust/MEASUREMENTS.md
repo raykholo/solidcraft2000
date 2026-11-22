@@ -46,7 +46,7 @@ The colourful gradient/checker test card gives a less favourable full redraw:
 | Braille | 256 | 49,087 | 49.087 ms | 4.261 s |
 | Braille | 16 | 37,484 | 37.484 ms | 3.254 s |
 
-Reproduce by running the queued release build's `sc98-term-demo --measure`.
+Reproduce by running the queued release build's `sc2000-term-demo --measure`.
 The mean is fractional because individual frames have different byte counts.
 
 ## RISC-V release size
@@ -58,7 +58,7 @@ Ctrl-L handling and the input decoder, retained through `core::hint::black_box`.
 
 | Artifact / section | Bytes |
 |---|---:|
-| Library `libsc98_term.rlib` | 215,990 |
+| Library `libsc2000_term.rlib` | 215,990 |
 | Linked stripped probe ELF on disk | 8,628 |
 | `.text` | 6,600 |
 | `.rodata` | 514 |
@@ -80,12 +80,12 @@ section and file sizes. No hardware timing or USB throughput was measured.
 
 ## Validation
 
-- `cargo test --manifest-path rust/Cargo.toml -p sc98-term --test terminal`:
+- `cargo test --manifest-path rust/Cargo.toml -p sc2000-term --test terminal`:
   **14 passed**. Includes golden streams in both modes/all palettes, individual
   dot placement, diff/attribute suppression, retry after write failures,
   Ctrl-L/resize/configuration, scaling, input sequence/read-split coverage,
   mouse buttons/modifiers/drag/wheel and malformed input recovery.
-- `cargo test --manifest-path rust/Cargo.toml -p sc98-term-demo --test scene`:
+- `cargo test --manifest-path rust/Cargo.toml -p sc2000-term-demo --test scene`:
   **2 passed**. Repeatable test pattern/cube and rotating diff behaviour.
 - Both crates' targeted `cargo clippy --all-targets -- -D warnings`: **passed**;
   the library check also enables all features to include the size example.
