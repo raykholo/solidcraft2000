@@ -29,19 +29,6 @@ jobs:
         run: cargo fmt --all --check
       - name: Check the core without std
         run: cargo check --locked -p sc2000-core --no-default-features
-      - name: TEMP regenerate baselines
-        continue-on-error: true
-        run: |
-          UPDATE_GOLDENS=1 UPDATE_SCREENSHOTS=1 cargo test --locked -p sc2000-pixels -p sc2000-desktop --all-features
-          cargo run --locked --release -p sc2000-desktop -- --screenshot docs/desktop-640x480.png
-          cargo run --locked --release -p sc2000-desktop -- --compact --screenshot docs/desktop-320x240.png
-      - name: TEMP upload baselines
-        uses: actions/upload-artifact@v4
-        with:
-          name: baselines
-          path: |
-            rust/sc2000-pixels/tests/golden
-            rust/docs/*.png
       - name: Test
         run: cargo test --locked --workspace --all-features
       - name: Clippy
