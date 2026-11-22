@@ -103,7 +103,7 @@ jobs:
           $fpc = (Get-ChildItem C:\lazarus\fpc -Recurse -Filter fpc.exe | Select-Object -First 1).FullName
           New-Item -ItemType Directory -Force build | Out-Null
           & $fpc -O1 -Fusrc "-Fu$lu" -FUbuild -obuild\coretest.exe tests\coretest.pas | Select-Object -Last 5
-          $out = & build\coretest.exe
+          $out = & .\build\coretest.exe
           $out | Out-File core.txt
           $out
           if (-not ($out -match "core: all ok")) { throw "core tests failed" }
