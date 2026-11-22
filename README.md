@@ -225,6 +225,20 @@ the registry key VB's `SaveSetting` uses). It's also off under the remote
 control and with `/STABLE`. `/CRASHTEST` brings the first one forward to ten
 seconds, to see it without waiting.
 
+### Check Online for Help
+
+**Help > Check Online for Help...** dials SolidCraft Online, with the noise:
+the dial tone, the number in touch tones, the ring, the answer tone, the
+"bong", and the screech. Then "Connected at 56,000 bps" (actual speed 28,800
+bps; it was always 28,800 bps), and your browser opens this README, which is
+all the online help there is. Cancel hangs up. Asked for on the
+[Dutchman CAD Discord](https://discord.gg/yTcseBEdeu).
+
+The handshake isn't a recording: `modModem.bas` makes it, sample by sample, at
+a volume that won't wake anyone.
+
+![Connecting to SolidCraft Online](docs/screenshots/checkonline.png)
+
 ### And
 
 - Parts are `.sc2` files. File > Open still takes `.sc98` parts and SolidCraft
@@ -317,6 +331,7 @@ drawn at startup. New in 2000:
 | `modAdaptive.bas` | Personalized Menus |
 | `frmUpgrade.frm` | The Upgrade Wizard |
 | `modStability.bas` | The blue screen every 15 minutes or so, and the Stability Pack |
+| `frmModem.frm`, `modModem.bas` | Check Online for Help, and the modem handshake, made in code |
 | `modArt.bas` | The 2000 logo, the starburst and the Y2K sticker, in `Line`, `Circle` and GDI |
 
 The rest is SolidCraft 98's, described in
