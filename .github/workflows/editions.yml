@@ -218,6 +218,7 @@ jobs:
           cp ../samples/* tests/home/Documents/
           # a fillet, a chamfer, a hole pattern, undo and redo, in the emulated Pi
           docker run --rm --platform linux/arm/v6 -v "$PWD":/w -w /w -e HOME=/w/tests/home $PI_IMAGE bash -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends libx11-6 libxext6 libxrender1 libxrandr2 libxpm4 libffi7 libgpm2 libtinfo6 libncurses6 > /dev/null
             timeout 900 ./build/arm/sc2000 --headless --log tests/out/log13.txt --script tests/ui13.txt'
           grep -q "status: Chamfer1 created: 2 mm x 45" tests/out/log13.txt
           grep -q "status: Redone: Add Hole1" tests/out/log13.txt
