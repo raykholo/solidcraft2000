@@ -452,8 +452,8 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
     Case FK_SKETCH_RECT
         If Not frmParams.Ask(sTitle & "Sketch Rectangle", _
             "Width (mm)|Height (mm)|Corner X (mm)|Corner Y (mm)|Corner radius (mm)|" & PlacePrompts(), _
-            Fmt0(f.P1) & "|" & Fmt0(f.P2) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y) & "|" & Fmt0(f.P3) & "|" & Fmt0(f.Ref) & "|" & Fmt0(f.Z)) Then Exit Function
-        If Not PlaceOk(d, i, frmParams.Value(5)) Then Exit Function
+            Fmt0(f.P1) & "|" & Fmt0(f.P2) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y) & "|" & Fmt0(f.P3) & "|" & Fmt0(f.Ref) & "|" & Fmt0(f.Z) & "|" & SketchFace(f)) Then Exit Function
+        If Not PlaceOk(d, i, frmParams.Value(5), frmParams.Value(7)) Then Exit Function
         If frmParams.Value(0) <= 0 Or frmParams.Value(1) <= 0 Then
             MsgBox "Width and height must be more than zero.", vbExclamation, App.Title
             Exit Function
@@ -470,11 +470,12 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         f.X = frmParams.Value(2): f.Y = frmParams.Value(3)
         f.P3 = frmParams.Value(4)
         f.Ref = frmParams.Value(5): f.Z = frmParams.Value(6)
+        If f.Ref > 0 Then f.Reserved(1) = frmParams.Value(7) Else f.Reserved(1) = FACE_TOP
 
     Case FK_SKETCH_CIRCLE
         If Not frmParams.Ask(sTitle & "Sketch Circle", "Radius (mm)|Centre X (mm)|Centre Y (mm)|" & PlacePrompts(), _
-            Fmt0(f.P1) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y) & "|" & Fmt0(f.Ref) & "|" & Fmt0(f.Z)) Then Exit Function
-        If Not PlaceOk(d, i, frmParams.Value(3)) Then Exit Function
+            Fmt0(f.P1) & "|" & Fmt0(f.X) & "|" & Fmt0(f.Y) & "|" & Fmt0(f.Ref) & "|" & Fmt0(f.Z) & "|" & SketchFace(f)) Then Exit Function
+        If Not PlaceOk(d, i, frmParams.Value(3), frmParams.Value(5)) Then Exit Function
         If frmParams.Value(0) <= 0 Then
             MsgBox "The radius must be more than zero.", vbExclamation, App.Title
             Exit Function
@@ -482,6 +483,7 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
         f.P1 = frmParams.Value(0)
         f.X = frmParams.Value(1): f.Y = frmParams.Value(2)
         f.Ref = frmParams.Value(3): f.Z = frmParams.Value(4)
+        If f.Ref > 0 Then f.Reserved(1) = frmParams.Value(5) Else f.Reserved(1) = FACE_TOP
 
     Case FK_EXTRUDE
         If Not frmParams.Ask(sTitle & "Extrude " & FeatureName(d, f.Ref), "Depth (mm)", Fmt0(f.P1)) Then Exit Function
@@ -650,11 +652,12 @@ Private Function AskFeature(d As TDesign, ByVal i As Integer, f As TFeature) As 
 End Function
 
 Private Function PlacePrompts() As String
-    PlacePrompts = "On feature # (0 = ground)|Height above that (mm)"
+    PlacePrompts = "On feature # (0 = ground)|Height above that (mm)|Face (0 top, 1-4 sides)"
 End Function
 
-' The "on top of" number must be 0 or an extrude that comes before this sketch.
-Private Function PlaceOk(d As TDesign, ByVal i As Integer, ByVal v As Double) As Boolean
+' The "on top of" number must be 0 or an extrude that comes before this
+' sketch, and the face 0 (its top) or, Service Pack 1, one of its sides.
+Private Function PlaceOk(d As TDesign, ByVal i As Integer, ByVal v As Double, ByVal face As Double) As Boolean
     Dim n As Integer, last As Integer
     If v = 0 Then
         PlaceOk = True
@@ -664,6 +667,17 @@ Private Function PlaceOk(d As TDesign, ByVal i As Integer, ByVal v As Double) As
     n = Int(v)
     If n = v And n >= 1 And n <= last Then
         If d.Features(n).Kind = FK_EXTRUDE Then
+            If face <> Int(face) Or face < FACE_TOP Or face > FACE_LEFT Then
+                MsgBox "Face is 0 for the top, or a side: 1 front, 2 right, 3 back, 4 left." & vbCrLf & vbCrLf & _
+                    "On a side, X runs along the face, Y goes up it from the bottom, and" & vbCrLf & _
+                    "Height above that is how far out from it.", vbInformation, App.Title
+                Exit Function
+            End If
+            If face <> FACE_TOP And d.Features(d.Features(n).Ref).Kind <> FK_SKETCH_RECT Then
+                MsgBox FeatureName(d, n) & " is round. It has no flat sides to sketch on." & vbCrLf & _
+                    "(Round sides are planned for SolidCraft XP.)", vbExclamation, App.Title
+                Exit Function
+            End If
             PlaceOk = True
             Exit Function
         End If

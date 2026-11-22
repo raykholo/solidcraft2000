@@ -116,11 +116,31 @@ too, when they take whole sides of an extrude's top or bottom, as SolidCraft
 2000's own do. One on an upright edge, or on part of a circle, still waits in
 the timeline for SolidCraft XP. New sample: `Rounded Block.solidcraft`.
 
+### Sketches on side faces
+
+The sketch dialogs have one more box, **Face**. With **On feature #** set to
+an extrude, Face 0 is its top, as before, and 1 to 4 are its sides: 1 front,
+2 right, 3 back, 4 left. On a side, Corner X runs along the face (left to
+right, looking at it), Corner Y goes up it from the extrude's bottom, and
+**Height above that** is how far out from it. Extrude the sketch and it grows
+out of that side; holes go into its end, fillets round it, and a sketch on
+one of its faces works the same way, as far down as you like.
+
+![A block with a boss on its front face, and a hole in the boss](docs/screenshots/sideface.png)
+
+- Only a box has flat sides: a circle's extrude says it's round.
+- A body on a side face stays a separate body in the STL, as anything not
+  standing on a top face does. Slicers merge them.
+- A hole through all goes through the bodies facing the same way, and stops
+  at the face.
+- Sheet metal lies flat: a base flange needs a sketch on the ground or a top.
+
 ### Service Pack 1 parts
 
-A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as
-version 7. SolidCraft 2000 1.0 won't open it, and asks for Service Pack 1,
-which it was always going to do. Parts without them still open in 1.0.
+A part with a chamfer, a hole pattern, a fillet on chosen edges or a sketch on
+a side face is saved as version 7. SolidCraft 2000 1.0 won't open it, and asks
+for Service Pack 1, which it was always going to do. Parts without them still
+open in 1.0.
 
 ## New in 2000
 
@@ -237,8 +257,9 @@ corner, and a boss with a bore. About five minutes.
 
 ## What it can't do yet
 
-- Sketches are rectangles and circles, flat, facing up. Holes go straight down
-  from a top face, one at a time, in a row or round a circle. Fillets and
+- Sketches are rectangles and circles, on the ground, a top face or the side
+  of a box. Holes go straight in from a body's top (or end) face, one at a
+  time, in a row or round a circle. Fillets and
   chamfers go on whole sides of an extrude's top and bottom, not on its
   upright edges (a rectangle's Corner radius does those).
 - No booleans to speak of: a body standing wholly on another's top face is

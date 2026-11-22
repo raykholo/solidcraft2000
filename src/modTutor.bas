@@ -36,7 +36,7 @@ Private Sub LoadTopics()
     Topic "save open new file export stl print", "menu File > Save (key ctrl+s), Open (key ctrl+o), New (key ctrl+n). menu File > Export for Rapid Prototyping... makes an STL file for a 3D printer.", ""
     Topic "view shade shaded look see iso isometric zoom rotate orbit fit", "key s shades the part (again for wireframe), key i is the isometric view, key f zooms to fit. Drag in the view to turn it.", ""
     Topic "dialog field fields number numbers type typing tab enter ok cancel units", "In a dialog, the field with the focus is all selected, so typing replaces it. key tab goes to the next field, key enter is OK, key esc is Cancel. Numbers only: 20, not 20mm. Number boxes do sums: 80/2 is 40.", ""
-    Topic "top stack stacked boss onto sit sits", "To put a sketch on top of a solid, set On feature # in the sketch dialog to the solid's number in the timeline's # column. It sits on that solid's top face.", ""
+    Topic "top stack stacked boss onto sit sits side sides face faces front back left right sideways", "To put a sketch on a solid, set On feature # in the sketch dialog to the solid's number in the timeline's # column. Face 0 is its top face. New in Service Pack 1, a side of a box: Face 1 front, 2 right, 3 back, 4 left; on a side, Corner X runs along the face, Corner Y goes up it from the bottom, and Height above that is how far out. Extrude it and it grows out of that side.", ""
 End Sub
 
 ' The topic that shares the most words with these, or -1.

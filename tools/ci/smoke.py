@@ -113,6 +113,22 @@ t = say("look")
 if "top front and back edges, bottom edges" not in t or "Rebuild error" in t:
     problems.append("the fillet on chosen edges didn't build: " + t.splitlines()[0])
 
+# a sketch on the front face of a block, extruded out of it, with a hole in its end
+say("key ctrl+n")
+say("key r"); say("key enter")
+say("key e"); say("key enter")
+say("key r")
+say("type 10"); say("key tab"); say("type 6"); say("key tab"); say("type 15"); say("key tab"); say("type 5")
+say("key tab"); say("key tab"); say("type 2"); say("key tab"); say("key tab"); say("type 1"); say("key enter")
+say("key e"); say("type 8"); say("key enter")
+say("key h"); say("type 3"); say("key enter")
+say("key i")
+say("wait 1500")
+shot("sideface")
+t = say("look")
+if "on Extrude1 front" not in t or "| Hole1 |" not in t or "Rebuild error" in t:
+    problems.append("the sketch on a side face didn't build: " + t.splitlines()[0])
+
 # a block, its top edges chamfered, a hole in the top, in a new part
 say("key ctrl+n")
 say("key r"); say("key enter")

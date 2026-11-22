@@ -282,6 +282,7 @@ End Function
 Private Function SketchPlace(d As TDesign, f As TFeature) As String
     If f.Ref > 0 Then
         SketchPlace = ", on " & FeatureName(d, f.Ref)
+        If SketchFace(f) <> FACE_TOP Then SketchPlace = SketchPlace & " " & FaceName(SketchFace(f))
         If f.Z <> 0 Then SketchPlace = SketchPlace & IIf(f.Z > 0, " +", " ") & Fmt(f.Z)
     ElseIf f.Z <> 0 Then
         SketchPlace = ", Z " & Fmt(f.Z)
@@ -328,7 +329,8 @@ End Function
 
 ' The oldest version that can hold this part, so a part without anything
 ' from Service Pack 1 still opens in SolidCraft 2000 1.0. One with a chamfer,
-' a hole pattern or a fillet on chosen edges tells 1.0 to get Service Pack 1,
+' a hole pattern, a fillet on chosen edges or a sketch on a side face tells
+' 1.0 to get Service Pack 1,
 ' which is the truth.
 Private Function SaveVersion(d As TDesign) As Integer
     Dim i As Integer
@@ -337,6 +339,7 @@ Private Function SaveVersion(d As TDesign) As Integer
         If d.Features(i).Kind = FK_CHAMFER Then SaveVersion = FILE_VERSION
         If d.Features(i).Kind = FK_HOLE And d.Features(i).P3 >= 2 Then SaveVersion = FILE_VERSION
         If IsEdgeFinish(d.Features(i).Kind) And (d.Features(i).Reserved(1) <> 0 Or d.Features(i).Reserved(2) <> 0) Then SaveVersion = FILE_VERSION
+        If IsSketch(d.Features(i).Kind) And d.Features(i).Reserved(1) <> 0 Then SaveVersion = FILE_VERSION
     Next i
 End Function
 

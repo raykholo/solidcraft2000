@@ -43,6 +43,8 @@ Private mN As Long
 Private mErr As String
 Private mSegs As Integer
 Private mJoin() As Integer     ' mJoin(j) = the extrude that extrude j stands on and is joined to, or 0
+Private mXf As TFrame          ' the frame of the body being meshed (Service Pack 1: side faces)
+Private mXfOn As Boolean
 
 ' the loops to cut out of the cap being made, all anticlockwise
 Private mLX() As Double
@@ -63,6 +65,8 @@ Public Function MeshDesign(d As TDesign, t() As TTri, Optional ByVal nSegs As In
     FindJoins d
     For i = 1 To d.Count
         If d.Features(i).Suppressed = 0 And RefOk(d, i) Then
+            mXf = BodyFrame(d, i)            ' built in its own frame, added in the world's
+            mXfOn = (d.Features(i).Kind = FK_EXTRUDE Or d.Features(i).Kind = FK_REVOLVE) And Not IsLevel(mXf)
             Select Case d.Features(i).Kind
             Case FK_EXTRUDE
                 MeshExtrude d, i
@@ -75,6 +79,7 @@ Public Function MeshDesign(d As TDesign, t() As TTri, Optional ByVal nSegs As In
             End Select
         End If
     Next i
+    mXfOn = False
     t = mT
     MeshDesign = mN
     sErr = mErr
@@ -104,6 +109,11 @@ Private Sub AddTri(ByVal x1 As Double, ByVal y1 As Double, ByVal z1 As Double, _
     If x1 = x2 And y1 = y2 And z1 = z2 Then Exit Sub
     If x2 = x3 And y2 = y3 And z2 = z3 Then Exit Sub
     If x3 = x1 And y3 = y1 And z3 = z1 Then Exit Sub
+    If mXfOn Then                       ' a body on a side face: into the world
+        ToWorld mXf, x1, y1, z1, x1, y1, z1
+        ToWorld mXf, x2, y2, z2, x2, y2, z2
+        ToWorld mXf, x3, y3, z3, x3, y3, z3
+    End If
     If mN > UBound(mT) Then ReDim Preserve mT(0 To UBound(mT) * 2 + 1)
     With mT(mN)
         .X1 = x1: .Y1 = y1: .Z1 = z1
@@ -174,7 +184,7 @@ Private Function CollectHoles(d As TDesign, ByVal i As Integer, ByVal z1 As Doub
     s = TopFace(d, i)
     For j = i + 1 To d.Count
         If d.Features(j).Kind = FK_HOLE And d.Features(j).Suppressed = 0 Then
-            If RefOk(d, j) Then
+            If RefOk(d, j) And SameFrame(BodyFrame(d, j), BodyFrame(d, i)) Then
                 r = d.Features(j).P1 / 2
                 For q = 0 To HoleCount(d.Features(j)) - 1      ' every hole of a pattern
                     HoleAt d.Features(j), q, hx, hy
@@ -207,7 +217,7 @@ Private Sub FindJoins(d As TDesign)
         If IsBody(d, j) Then
             If GetBody(d, j, bz0, bz1, bx, by, nb) Then
                 For i = 1 To d.Count
-                    If i <> j And IsBody(d, i) Then
+                    If i <> j And IsBody(d, i) And SameFrame(BodyFrame(d, i), BodyFrame(d, j)) Then
                         If GetBody(d, i, az0, az1, ax, ay, na) Then
                             na = GetTop(d, i, ax, ay)
                             If Abs(az1 - bz0) < EPS Then

@@ -116,6 +116,7 @@ Public Function SM_RefOk(d As TDesign, ByVal i As Integer) As Boolean
         If f.Ref < 1 Or f.Ref >= i Then Exit Function
         s = d.Features(f.Ref)
         If s.Kind <> FK_SKETCH_RECT Or s.P3 > 0 Then Exit Function
+        If Not IsLevel(FrameOf(d, f.Ref)) Then Exit Function     ' sheet metal lies flat
         If Not RefOk(d, f.Ref) Then Exit Function
         SM_RefOk = (f.P1 > 0 And f.P2 >= 0 And f.P3 >= 0 And f.P3 <= 1)
     Case FK_SM_EDGE
