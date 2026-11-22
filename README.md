@@ -101,13 +101,6 @@ bottom). Front and back is 5. In 2000 this was considered user-friendly.
 - Holes keep clear of the top fillet, and of the bottom one if they come
   out through it.
 
-### Service Pack 1 parts
-
-A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as
-version 7. SolidCraft
-2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
-to do. Parts without them still open in 1.0.
-
 ### Undo and Redo
 
 **Edit > Undo** (Ctrl+Z) takes back the last change, whatever it was: a new
@@ -115,6 +108,18 @@ feature, an edit, a delete, a fold or an unfold. **Edit > Redo** (Ctrl+Y) does
 it again. Twenty levels for each part, like Office 2000. The status bar says
 what was undone, and "Can't Undo." when there's nothing left. (1.0's Undo
 only ever took off the last feature.)
+
+### Service Pack 1 parts
+
+A part with a chamfer or a hole pattern is saved as version 7. SolidCraft
+2000 1.0 won't open it, and asks for Service Pack 1, which it was always going
+to do. Parts without them still open in 1.0.
+
+### Service Pack 1 parts
+
+A part with a chamfer, a hole pattern or a fillet on chosen edges is saved as
+version 7. SolidCraft 2000 1.0 won't open it, and asks for Service Pack 1,
+which it was always going to do. Parts without them still open in 1.0.
 
 ## New in 2000
 
