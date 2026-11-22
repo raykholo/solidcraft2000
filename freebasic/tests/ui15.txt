@@ -1,0 +1,15 @@
+# SolidCraft 2000: the blue screen, brought forward by --crashtest
+wait 200
+key r
+wait 100
+key enter
+wait 200
+key e
+wait 100
+key enter
+wait 300
+wait 11500
+shot tests/out/x01_bluescreen.bmp
+key space
+wait 300
+shot tests/out/x02_back.bmp

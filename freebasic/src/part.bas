@@ -10,6 +10,8 @@ Dim Shared DocDirty(1 To MAX_DOCS) As Boolean
 Dim Shared DocInUse(1 To MAX_DOCS) As Boolean
 Dim Shared mUntitled As Long
 
+Declare Sub HistoryClear(ByVal slot As Long)
+
 Function NewDocSlot() As Long
     Dim i As Long
     For i = 1 To MAX_DOCS
@@ -17,6 +19,7 @@ Function NewDocSlot() As Long
             mUntitled += 1
             NewDesign Docs(i), "Part" & mUntitled
             DocPath(i) = "": DocDirty(i) = False: DocInUse(i) = True
+            HistoryClear i
             Return i
         End If
     Next
@@ -24,7 +27,7 @@ Function NewDocSlot() As Long
 End Function
 
 Sub FreeDocSlot(ByVal i As Long)
-    If i >= 1 And i <= MAX_DOCS Then DocInUse(i) = False
+    If i >= 1 And i <= MAX_DOCS Then DocInUse(i) = False: HistoryClear i
 End Sub
 
 Function DocTitle(ByVal i As Long) As String
@@ -368,7 +371,7 @@ End Sub
 
 ' The sketch an extrude or revolve uses hangs under it, the way people expect.
 Function UsesSketch(ByRef d As TDesign, ByVal i As Long) As Long
-    If d.F(i).Kind = FK_EXTRUDE Or d.F(i).Kind = FK_REVOLVE Then
+    If d.F(i).Kind = FK_EXTRUDE Or d.F(i).Kind = FK_REVOLVE Or SM_UsesSketch(d.F(i).Kind) Then
         If d.F(i).Ref >= 1 And d.F(i).Ref < i AndAlso IsSketch(d.F(d.F(i).Ref).Kind) Then Return d.F(i).Ref
     End If
     Return 0
@@ -464,7 +467,7 @@ Function TimelineCell(ByRef d As TDesign, ByVal i As Long, ByVal col As Long) As
         Return KindName(d.F(i).Kind)
     Case 3: Return Describe(d, i)
     Case 4
-        If d.F(i).Kind = FK_FOREIGN Then Return "Requires SolidCraft 2000"
+        If d.F(i).Kind = FK_FOREIGN Then Return "Requires SolidCraft XP"
         If RefOk(d, i) Then Return "OK"
         Return "Rebuild error"
     End Select

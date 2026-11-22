@@ -330,6 +330,7 @@ Enum
     CT_ICON
     CT_LIST
     CT_COMBO
+    CT_RADIO
     CT_CUSTOM
 End Enum
 
@@ -357,6 +358,9 @@ Type TCtl
     sel As Long             ' list: selected row
     top As Long             ' list: first row shown
     tag As Long
+    plain As Boolean        ' list: no icons (a wizard's choices)
+    checked As Boolean      ' radio: the one chosen
+    bold As Boolean         ' label: bold
 End Type
 
 Const MAX_CTL = 40
@@ -514,13 +518,14 @@ Sub DrawListCtl(ByRef d As TDlg, ByVal level As Long, ByRef c As TCtl, ByVal ox 
         Dim As String it = ListRows(i)
         Dim As Long ry = y + 2 + (i - c.top) * LIST_ROW_H
         Dim As String nm = Mid(it, 2)
-        DrawIcon x + 4, ry, IIf(Left(it, 1) = "D", "Open", "New")
+        Dim As Long ix = IIf(c.plain, 2, 22)
+        If Not c.plain Then DrawIcon x + 4, ry, IIf(Left(it, 1) = "D", "Open", "New")
         If i = c.sel Then
-            Fill x + 22, ry + 1, TextW(nm) + 4, 14, IIf(focused, C_SEL, C_FACE)
-            Text x + 24, ry + 3, nm, IIf(focused, C_SELTEXT, C_TEXT)
-            If focused Then FocusRect x + 22, ry + 1, TextW(nm) + 4, 14
+            Fill x + ix, ry + 1, TextW(nm) + 4, 14, IIf(focused, C_SEL, C_FACE)
+            Text x + ix + 2, ry + 3, nm, IIf(focused, C_SELTEXT, C_TEXT)
+            If focused Then FocusRect x + ix, ry + 1, TextW(nm) + 4, 14
         Else
-            Text x + 24, ry + 3, nm, C_TEXT
+            Text x + ix + 2, ry + 3, nm, C_TEXT
         End If
     Next
     NoClip
@@ -539,6 +544,25 @@ Sub DrawButtonCtl(ByRef c As TCtl, ByVal ox As Long, ByVal oy As Long, ByVal foc
     Dim As Long tw = TextW(AmpStrip(c.text))
     TextAmp x + (w - tw) \ 2 + off, y + (h - 11) \ 2 + off, c.text, C_TEXT, c.disabled
     If focused Then FocusRect x + 3, y + 3, w - 6, h - 6
+End Sub
+
+' An option button: a round hole, a dot if it's the one chosen.
+Sub DrawRadioCtl(ByRef c As TCtl, ByVal ox As Long, ByVal oy As Long)
+    Dim As Long x = ox + c.x, y = oy + c.y + 1, r, k
+    Static ring(0 To 12) As ZString * 14 = { _
+        "....xxxxx....", "..xxwwwwwxx..", ".xwwwwwwwwwx.", ".xwwwwwwwwwx.", "xwwwwwwwwwwwx", "xwwwwwwwwwwwx", _
+        "xwwwwwwwwwwwx", "xwwwwwwwwwwwx", "xwwwwwwwwwwwx", ".xwwwwwwwwwx.", ".xwwwwwwwwwx.", "..xxwwwwwxx..", "....xxxxx...." }
+    For r = 0 To 12
+        For k = 0 To 12
+            Dim As Long ch = ring(r)[k]
+            If ch = Asc("x") Then PSetC x + k, y + r, IIf(k + r < 12, C_SHADOW, C_HILITE)
+            If ch = Asc("w") Then PSetC x + k, y + r, IIf(c.disabled, C_FACE, C_WINDOW)
+        Next
+    Next
+    If c.checked Then
+        Fill x + 5, y + 4, 3, 5, C_DARK: Fill x + 4, y + 5, 5, 3, C_DARK
+    End If
+    TextAmp x + 20, y + 1, c.text, C_TEXT, c.disabled
 End Sub
 
 Sub DrawComboCtl(ByRef c As TCtl, ByVal ox As Long, ByVal oy As Long, ByVal focused As Boolean)
@@ -591,7 +615,13 @@ Sub DrawDialog(ByVal level As Long)
                 Do
                     Dim As Long p = InStr(t, Chr(10))
                     Dim As String ln = IIf(p, Left(t, p - 1), t)
-                    If .c(i).disabled Then TextDisabled ox + .c(i).x, ly, ln Else TextAmp ox + .c(i).x, ly, ln, C_TEXT
+                    If .c(i).disabled Then
+                        TextDisabled ox + .c(i).x, ly, ln
+                    ElseIf .c(i).bold Then
+                        Text ox + .c(i).x, ly, ln, C_TEXT, True
+                    Else
+                        TextAmp ox + .c(i).x, ly, ln, C_TEXT
+                    End If
                     ly += LINE_H
                     If p = 0 Then Exit Do
                     t = Mid(t, p + 1)
@@ -609,6 +639,8 @@ Sub DrawDialog(ByVal level As Long)
                 DrawListCtl *d, level, .c(i), ox, oy, foc
             Case CT_COMBO
                 DrawComboCtl .c(i), ox, oy, foc
+            Case CT_RADIO
+                DrawRadioCtl .c(i), ox, oy
             End Select
         Next
         If .drawFn <> 0 Then .drawFn(d)
@@ -928,7 +960,7 @@ Sub DialogEvent(ByVal d As TDlg Ptr, ByRef ev As UIEvent)
                 If d->clickFn <> 0 Then
                     If d->clickFn(d, i) Then d->done = True
                 End If
-            Case CT_CUSTOM
+            Case CT_CUSTOM, CT_RADIO
                 If d->clickFn <> 0 Then
                     If d->clickFn(d, i) Then d->done = True
                 End If
@@ -1017,7 +1049,7 @@ End Sub
 
 ' ---- MsgBox, as VB had it ----
 
-Function MsgBox(ByRef prompt As String, ByVal flags As Long = 0, ByRef title As String = "SolidCraft 98") As Long
+Function MsgBox(ByRef prompt As String, ByVal flags As Long = 0, ByRef title As String = "SolidCraft 2000") As Long
     Dim d As TDlg
     Busy = False                 ' a question needs the arrow, not the hourglass
     Dim As Long i, tw, nl = 1, iconKind = flags And &h70, btnSet = flags And 7

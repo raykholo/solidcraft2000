@@ -2,11 +2,12 @@
 ' of the Windows version's modImport.
 '
 ' A .solidcraft file is a ZIP holding document.json, the design's feature
-' history (a plain-JSON design works too). We rebuild what SolidCraft 98 can
+' history (a plain-JSON design works too). We rebuild what SolidCraft 2000 can
 ' build: flat sketches of rectangles (rounded or not) and circles, extrudes,
-' revolves about the sketch's Y axis, and straight-down holes. Everything
-' else stays in the timeline as "Requires SolidCraft 2000". A feature comes
-' over whole or not at all.
+' revolves about the sketch's Y axis, straight-down holes, and (Service Pack
+' 1) fillets and chamfers that take whole sides of an extrude's top or
+' bottom. Everything else stays in the timeline as "Requires SolidCraft XP".
+' A feature comes over whole or not at all.
 
 Const IEPS = 0.001          ' mm: "the same height"
 Const PK_RECT = 1, PK_CIRCLE = 2
@@ -243,7 +244,7 @@ Sub ReadSketch(ByRef d As TDesign, ByVal f As Long)
             NotOk s, "drawn on the " & JStr(JGet(plane, "name")) & " plane"
         ElseIf JGet(plane, "offset") > 0 Then
             v = NodeValue(JGet(plane, "offset"), ok)
-            If ok Then s.Z = v Else NotOk s, "an offset SolidCraft 98 can't work out"
+            If ok Then s.Z = v Else NotOk s, "an offset SolidCraft 2000 can't work out"
         End If
     Case "face"
         pl = JGet(plane, "plane")
@@ -307,7 +308,7 @@ Sub ReadSketch(ByRef d As TDesign, ByVal f As Long)
             NotOk s, "a shape that isn't a rectangle or a circle"
         End If
     End If
-    If s.NP = 0 And s.Ok Then NotOk s, "nothing SolidCraft 98 can draw"
+    If s.NP = 0 And s.Ok Then NotOk s, "nothing SolidCraft 2000 can draw"
     If s.Ok Then FindHoles s
     If iNSk > UBound(iSk) Then ReDim Preserve iSk(0 To UBound(iSk) * 2 + 1)
     iSk(iNSk) = s
@@ -322,7 +323,7 @@ Function FindSketch(ByVal id As Long) As Long
     Return -1
 End Function
 
-' The SolidCraft 98 extrude whose top is at height z and that the circle fits on.
+' The SolidCraft 2000 extrude whose top is at height z and that the circle fits on.
 Function ExtrudeWithTopAt(ByRef d As TDesign, ByVal z As Double, ByVal x As Double, ByVal y As Double, ByVal r As Double) As Long
     Dim As Long i
     Dim As Double z0, z1
@@ -354,7 +355,7 @@ Function OutlineProfile(ByVal k As Long, ByVal n As Long) As Long
     Return 0
 End Function
 
-' Adds one SolidCraft 98 sketch per outline of sketch k, at height z, and puts
+' Adds one SolidCraft 2000 sketch per outline of sketch k, at height z, and puts
 ' their indices in idx(). A sketch on a face sits on the extrude under it.
 Sub EmitSketches(ByRef d As TDesign, ByVal k As Long, ByVal z As Double, idx() As Long)
     Dim As Long i, n, onExt
@@ -415,12 +416,12 @@ Sub ImportExtrude(ByRef d As TDesign, ByVal f As Long)
     If JGet(f, "taper") > 0 Then Foreign d, f, "Extrude", "tapered": Exit Sub
     ext = JGet(f, "extent")
     If JGet(ext, "distance2") > 0 Or JGet(ext, "to") > 0 Or JGet(ext, "start_offset") > 0 Then
-        Foreign d, f, "Extrude", "an extent SolidCraft 98 doesn't have": Exit Sub
+        Foreign d, f, "Extrude", "an extent SolidCraft 2000 doesn't have": Exit Sub
     End If
     through = JBool(JGet(ext, "through_all"))
     If Not through Then
         dist = NodeValue(JGet(ext, "distance"), ok)
-        If Not ok Or dist <= 0 Then Foreign d, f, "Extrude", "a distance SolidCraft 98 can't work out": Exit Sub
+        If Not ok Or dist <= 0 Then Foreign d, f, "Extrude", "a distance SolidCraft 2000 can't work out": Exit Sub
     End If
     sDir = JStr(JGet(ext, "direction"))
     sOp = JStr(JGet(f, "operation"))
@@ -478,7 +479,7 @@ Sub ImportRevolve(ByRef d As TDesign, ByVal f As Long)
     If JStr(JGet(JGet(f, "profiles"), "type")) <> "all" Then Foreign d, f, "Revolve", "only some of its sketch's profiles": Exit Sub
     If JGet(f, "angle") > 0 Then
         ang = NodeValue(JGet(f, "angle"), ok)
-        If Not ok Then Foreign d, f, "Revolve", "an angle SolidCraft 98 can't work out": Exit Sub
+        If Not ok Then Foreign d, f, "Revolve", "an angle SolidCraft 2000 can't work out": Exit Sub
     Else
         ang = 360
     End If
@@ -499,7 +500,7 @@ Sub ImportRevolve(ByRef d As TDesign, ByVal f As Long)
         If idx(i) = 0 Then Exit Sub
         Dim e As TFeature
         e.Kind = FK_REVOLVE: e.Ref = idx(i)
-        e.P1 = -ang          ' SolidCraft turns +X towards +Z; SolidCraft 98 the other way
+        e.P1 = -ang          ' SolidCraft turns +X towards +Z; SolidCraft 2000 the other way
         If AddRaw(d, e, IIf(n > 1, Left(sName, 20) & " " & (i + 1), sName)) = 0 Then Exit Sub
     Next
 End Sub
@@ -516,18 +517,134 @@ Sub ImportHole(ByRef d As TDesign, ByVal f As Long)
     If sKind <> "" And sKind <> "simple" And sKind <> "drilled" Then Foreign d, f, "Hole", PrettyType(sKind): Exit Sub
     If JGet(f, "diameter") = 0 Then Foreign d, f, "Hole", "a clearance or tapped size": Exit Sub
     dia = NodeValue(JGet(f, "diameter"), ok)
-    If Not ok Or dia <= 0 Then Foreign d, f, "Hole", "a diameter SolidCraft 98 can't work out": Exit Sub
+    If Not ok Or dia <= 0 Then Foreign d, f, "Hole", "a diameter SolidCraft 2000 can't work out": Exit Sub
     If JGet(f, "depth") > 0 Then
         depth = NodeValue(JGet(f, "depth"), ok)
-        If Not ok Or depth <= 0 Then Foreign d, f, "Hole", "a depth SolidCraft 98 can't work out": Exit Sub
+        If Not ok Or depth <= 0 Then Foreign d, f, "Hole", "a depth SolidCraft 2000 can't work out": Exit Sub
     End If
     If JGet(f, "to") > 0 Then Foreign d, f, "Hole", "drilled to an object": Exit Sub
     x = NodeValue(JItem(pos_, 0), ok): y = NodeValue(JItem(pos_, 1), ok): z = NodeValue(JItem(pos_, 2), ok)
     t = ExtrudeWithTopAt(d, z, x, y, dia / 2)
-    If t = 0 Then Foreign d, f, "Hole", "not on the top of a block SolidCraft 98 built": Exit Sub
+    If t = 0 Then Foreign d, f, "Hole", "not on the top of a block SolidCraft 2000 built": Exit Sub
     Dim h As TFeature
     h.Kind = FK_HOLE: h.Ref = t: h.X = x: h.Y = y: h.P1 = dia: h.P2 = depth
     AddRaw d, h, JStr(JGet(f, "name"))
+End Sub
+
+' ---- fillets and chamfers (Service Pack 1) ----
+'
+' SolidCraft names each edge by a point on it. SolidCraft 2000 rounds (or
+' bevels) whole sides of an extrude's top and bottom, so the feature comes
+' over when its points are all on one extrude's top or bottom outline: the
+' sides they're on are the sides it takes. Upright edges, or a circle's edge
+' taken in part, wait for SolidCraft XP.
+
+' Which side of sketch s the point (x, y) is on: 0 front, 1 right, 2 back,
+' 3 left (a circle is all side 0), -1 a rounded corner, -2 not on the outline.
+Function OutlineSide(ByRef s As TFeature, ByVal x As Double, ByVal y As Double) As Long
+    Dim As Double r, cx, cy
+    If s.Kind = FK_SKETCH_CIRCLE Then
+        If Abs(Sqr((x - s.X) ^ 2 + (y - s.Y) ^ 2) - s.P1) < IEPS Then Return 0
+        Return -2
+    End If
+    r = s.P3
+    If x > s.X + r - IEPS And x < s.X + s.P1 - r + IEPS Then
+        If Abs(y - s.Y) < IEPS Then Return 0
+        If Abs(y - (s.Y + s.P2)) < IEPS Then Return 2
+    End If
+    If y > s.Y + r - IEPS And y < s.Y + s.P2 - r + IEPS Then
+        If Abs(x - (s.X + s.P1)) < IEPS Then Return 1
+        If Abs(x - s.X) < IEPS Then Return 3
+    End If
+    If r > 0 Then
+        If x < s.X + r Then cx = s.X + r Else cx = s.X + s.P1 - r
+        If y < s.Y + r Then cy = s.Y + r Else cy = s.Y + s.P2 - r
+        If Abs(Sqr((x - cx) ^ 2 + (y - cy) ^ 2) - r) < IEPS Then Return -1
+    End If
+    Return -2
+End Function
+
+' Are all the points on the top or bottom outline of extrude b? mt and mb
+' get the sides they're on (1 front, 2 right, 4 back, 8 left). A circle, or a
+' rectangle with rounded corners, goes round in one piece: any point on it
+' takes it all.
+Function EdgeSides(ByRef d As TDesign, ByVal b As Long, px() As Double, py() As Double, pz() As Double, _
+                   ByVal n As Long, ByRef mt As Long, ByRef mb As Long) As Boolean
+    Dim As TFeature s
+    Dim As Double z0, z1
+    Dim As Long k, side, bt
+    s = d.F(d.F(b).Ref)
+    ExtrudeRange d, b, z0, z1
+    mt = 0: mb = 0
+    For k = 0 To n - 1
+        side = OutlineSide(s, px(k), py(k))
+        If side < -1 Then Return False             ' not on the outline at all
+        If side = -1 Or s.Kind = FK_SKETCH_CIRCLE Or s.P3 > 0 Then bt = SIDES_ALL Else bt = 1 Shl side
+        If Abs(pz(k) - z1) < IEPS Then
+            mt = mt Or bt
+        ElseIf Abs(pz(k) - z0) < IEPS Then
+            mb = mb Or bt
+        Else
+            Return False                           ' an upright edge
+        End If
+    Next k
+    Return True
+End Function
+
+Sub ImportEdgeFinish(ByRef d As TDesign, ByVal f As Long, ByVal bChamfer As Boolean)
+    Dim As Long edges, n, k, b, j, mt, mb
+    Dim As Double r
+    Dim As Boolean ok
+    Dim As String sWhat = IIf(bChamfer, "Chamfer", "Fillet")
+    Dim As Double px(Any), py(Any), pz(Any)
+    Dim As TFeature e
+    If bChamfer Then
+        If JGet(f, "distance2") > 0 Or JGet(f, "angle") > 0 Then Foreign d, f, sWhat, "not the same distance both ways": Exit Sub
+        r = NodeValue(JGet(f, "distance"), ok)
+    Else
+        If JGet(f, "style") > 0 Then
+            If JStr(JGet(JGet(f, "style"), "type")) <> "constant" Then Foreign d, f, sWhat, "not a constant radius": Exit Sub
+        End If
+        r = NodeValue(JGet(f, "radius"), ok)
+    End If
+    If Not ok Or r <= 0 Then Foreign d, f, sWhat, "a size SolidCraft 2000 can't work out": Exit Sub
+    edges = JGet(f, "edges")
+    If JKind(edges) <> JS_ARR Then Foreign d, f, sWhat, "edges SolidCraft 2000 can't find": Exit Sub
+    n = JCount(edges)
+    If n = 0 Then Foreign d, f, sWhat, "no edges": Exit Sub
+    ReDim px(0 To n - 1): ReDim py(0 To n - 1): ReDim pz(0 To n - 1)
+    For k = 0 To n - 1
+        If JKind(JItem(edges, k)) <> JS_ARR Then Foreign d, f, sWhat, "edges SolidCraft 2000 can't find": Exit Sub
+        px(k) = JNum(JItem(JItem(edges, k), 0))
+        py(k) = JNum(JItem(JItem(edges, k), 1))
+        pz(k) = JNum(JItem(JItem(edges, k), 2))
+    Next k
+    For b = d.Count To 1 Step -1
+        If d.F(b).Kind = FK_EXTRUDE Then
+            If RefOk(d, b) AndAlso EdgeSides(d, b, px(), py(), pz(), n, mt, mb) Then Exit For
+        End If
+    Next b
+    If b < 1 Then Foreign d, f, sWhat, "on edges other than whole sides of one extrude's top or bottom": Exit Sub
+    For j = b + 1 To d.Count
+        If IsEdgeFinish(d.F(j).Kind) And d.F(j).Ref = b Then
+            Foreign d, f, sWhat, "on an extrude that already has a fillet or chamfer": Exit Sub
+        End If
+    Next j
+    e.Kind = IIf(bChamfer, FK_CHAMFER, FK_FILLET)
+    e.Ref = b
+    e.P1 = r
+    e.Rsv(1) = SIDES_ALL - mt
+    e.Rsv(2) = mb
+    j = AddRaw(d, e, JStr(JGet(f, "name")))
+    If j = 0 Then Exit Sub
+    If Not RefOk(d, j) Then
+        ' too big for the extrude, or a hole is in its way: say so, and leave it out
+        d.F(j).Kind = FK_FOREIGN
+        d.F(j).Info = sWhat
+        d.F(j).P1 = 0: d.F(j).Ref = 0
+        iNForeign += 1
+        If iNForeign <= 12 Then iForeign &= "    " & FeatureName(d, j) & " (" & LCase(sWhat) & ": too big for " & FeatureName(d, b) & ")" & Chr(10)
+    End If
 End Sub
 
 ' Reads the design at sPath into d. Returns False (after saying why) if it can't.
@@ -554,7 +671,7 @@ Function ImportSolidCraft(ByRef sPath As String, ByRef d As TDesign) As Boolean
     Dim As String sFormat = JStr(JGet(root, "format"))
     feats = JGet(root, "features")
     If JKind(feats) <> JS_ARR Or (Left(sFormat, 11) <> "solidcraft/" And Left(sFormat, 11) <> "solvecraft/") Then
-        MsgBox "'" & sPath & "' isn't a SolidCraft design that SolidCraft 98 can read.", MB_EXCLAMATION
+        MsgBox "'" & sPath & "' isn't a SolidCraft design that SolidCraft 2000 can read.", MB_EXCLAMATION
         Return False
     End If
     NewDesign d, Left(JStr(JGet(root, "name")), 64)
@@ -570,6 +687,8 @@ Function ImportSolidCraft(ByRef sPath As String, ByRef d As TDesign) As Boolean
         Case "extrude": ImportExtrude d, f
         Case "revolve": ImportRevolve d, f
         Case "hole": ImportHole d, f
+        Case "fillet": ImportEdgeFinish d, f, False
+        Case "chamfer": ImportEdgeFinish d, f, True
         Case Else: Foreign d, f, PrettyType(sType), ""
         End Select
     Next
@@ -579,12 +698,12 @@ Function ImportSolidCraft(ByRef sPath As String, ByRef d As TDesign) As Boolean
         If iSk(k).Ok And Not iSk(k).Used Then EmitSketches d, k, iSk(k).Z, unused()
     Next
     If iNForeign > 0 Then
-        MsgBox "This design was made in SolidCraft. SolidCraft 98 has opened what it can build." & Chr(10) & Chr(10) & _
-            "These features require SolidCraft 2000 and have been left out:" & Chr(10) & iForeign & Chr(10) & _
+        MsgBox "This design was made in SolidCraft. SolidCraft 2000 has opened what it can build." & Chr(10) & Chr(10) & _
+            "These features require SolidCraft XP and have been left out:" & Chr(10) & iForeign & Chr(10) & _
             "They're still in the timeline.", MB_INFO
     End If
     If iFull Then
-        MsgBox "The design has more features than a SolidCraft 98 part can hold (" & MAX_FEATURES & ")." & Chr(10) & _
+        MsgBox "The design has more features than a SolidCraft 2000 part can hold (" & MAX_FEATURES & ")." & Chr(10) & _
             "The rest have been left out.", MB_EXCLAMATION
     End If
     Return True

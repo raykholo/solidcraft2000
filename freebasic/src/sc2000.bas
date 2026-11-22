@@ -1,4 +1,4 @@
-' SolidCraft 98 for Linux and the Raspberry Pi.
+' SolidCraft 2000 for Linux and the Raspberry Pi.
 ' The whole program is one compile: this file includes the rest, in order.
 
 #include "fbgfx.bi"
@@ -22,8 +22,12 @@
 #include "json.bas"
 #include "import.bas"
 #include "part.bas"
+#include "history.bas"
+#include "sheetmetal.bas"
 #include "eggs.bas"
 #include "app.bas"
+#include "sheetui.bas"
+#include "wizards.bas"
 #include "tutor.bas"
 #include "remote.bas"
 

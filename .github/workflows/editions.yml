@@ -131,23 +131,56 @@ jobs:
         working-directory: freebasic
         run: |
           mkdir -p build/arm
-          fbc -w all -exx src/sc98.bas -x build/sc98 2>&1 | grep -v "warning 38" || true
-          strip build/sc98 && ls -la build/sc98
+          fbc -w all -exx src/sc2000.bas -x build/sc2000 2>&1 | grep -v "warning 38" || true
+          strip build/sc2000 && ls -la build/sc2000
           # the Pi build starts here: fbc writes the C for ARMv6
-          fbc -target linux-arm -arch armv6 -gen gcc -r -m sc98 src/sc98.bas -o build/arm/sc98.c 2>&1 | grep -v "warning 38" || true
-          ls -la build/arm/sc98.c
-      - name: Run a UI script headless
+          fbc -target linux-arm -arch armv6 -gen gcc -r -m sc2000 src/sc2000.bas -o build/arm/sc2000.c 2>&1 | grep -v "warning 38" || true
+          ls -la build/arm/sc2000.c
+      - name: Check the model and the geometry
+        working-directory: freebasic
+        run: |
+          mkdir -p tests/out
+          fbc -w all tests/core_test.bas -x build/core_test 2>&1 | grep -v "warning 38" || true
+          build/core_test | tee tests/out/core.txt
+          grep -q "^ALL OK" tests/out/core.txt
+      - name: Run the UI scripts headless
         working-directory: freebasic
         run: |
           mkdir -p tests/home/Documents tests/out
-          cp tests/*.solidcraft tests/home/Documents/
-          HOME=$PWD/tests/home timeout 120 ./build/sc98 --headless --log tests/out/log.txt --script tests/ui1.txt
+          cp ../samples/* tests/home/Documents/
+          export HOME=$PWD/tests/home
+          # first look
+          timeout 120 ./build/sc2000 --headless --splash-shot tests/out/splash.bmp --log tests/out/log1.txt --script tests/ui1.txt
+          # the blue screen, brought forward (before anything installs the Stability Pack)
+          timeout 120 ./build/sc2000 --headless --crashtest --log tests/out/log15.txt --script tests/ui15.txt
+          grep -q "blue screen (scheduled)" tests/out/log15.txt
+          # a fillet, a chamfer, a hole pattern, undo and redo, a sketch on a side face
+          timeout 180 ./build/sc2000 --headless --log tests/out/log13.txt --script tests/ui13.txt
+          grep -q "status: Fillet1 created: R 3 mm, top edges of Extrude1" tests/out/log13.txt
+          grep -q "status: Chamfer1 created: 2 mm x 45" tests/out/log13.txt
+          grep -q "status: Hole1 created: 6 x D 5 mm" tests/out/log13.txt
+          grep -q "status: Undone: Add Hole1" tests/out/log13.txt
+          grep -q "status: Redone: Add Hole1" tests/out/log13.txt
+          grep -q "on Extrude1 front" tests/out/log13.txt
+          # .sc2 and .sc98 parts, sheet metal, the flat pattern, both wizards, the Stability Pack
+          timeout 180 ./build/sc2000 --headless --log tests/out/log14.txt --script tests/ui14.txt
+          grep -q "msgbox: This part was made in SolidCraft 98" tests/out/log14.txt
+          grep -q "status: Unfolded. Flat pattern saved as .*SHEETM~1.DXF" tests/out/log14.txt
+          grep -q "^bend table wizard" tests/out/log14.txt
+          grep -q "^upgrade wizard" tests/out/log14.txt
+          grep -q "msgbox: Changing the K-factor" tests/out/log14.txt
+          grep -q "msgbox: The Stability Pack has been installed" tests/out/log14.txt
+          test -s "tests/home/Documents/SHEETM~1.DXF"
+          # a SolidCraft design with a fillet
+          timeout 120 ./build/sc2000 --headless --log tests/out/log16.txt --script tests/ui16.txt
+          # the remote control
+          bash tests/remote-tutor.sh build/sc2000
           for f in tests/out/*.bmp; do convert "$f" "${f%.bmp}.png" && rm "$f"; done
           ls tests/out
       - uses: actions/upload-artifact@v7
-        with: { name: freebasic-linux, path: freebasic/build/sc98 }
+        with: { name: freebasic-linux, path: freebasic/build/sc2000 }
       - uses: actions/upload-artifact@v7
-        with: { name: freebasic-pi-c, path: freebasic/build/arm/sc98.c }
+        with: { name: freebasic-pi-c, path: freebasic/build/arm/sc2000.c }
       - uses: actions/upload-artifact@v7
         if: always()
         with: { name: freebasic-linux-screens, path: freebasic/tests/out }
@@ -177,9 +210,30 @@ jobs:
             apt-get update -qq
             apt-get install -y -qq build-essential curl ca-certificates libncurses-dev libx11-dev libxext-dev libxrender-dev libxrandr-dev libxpm-dev libffi-dev libgpm-dev xz-utils > /dev/null
             if [ "$BUILD_RT" = true ]; then bash tools/arm-rtlib.sh /w/rtlib-armv6; fi
-            bash tools/arm-link.sh build/arm/sc98.c build/arm/sc98 /w/rtlib-armv6'
+            bash tools/arm-link.sh build/arm/sc2000.c build/arm/sc2000 /w/rtlib-armv6'
+      - name: Run a UI script on the Pi build (emulated ARMv6)
+        working-directory: freebasic
+        run: |
+          mkdir -p tests/home/Documents tests/out
+          cp ../samples/* tests/home/Documents/
+          # a fillet, a chamfer, a hole pattern, undo and redo, in the emulated Pi
+          docker run --rm --platform linux/arm/v6 -v "$PWD":/w -w /w -e HOME=/w/tests/home $PI_IMAGE bash -c '
+            apt-get update -qq && apt-get install -y -qq --no-install-recommends libx11-6 libxext6 libxrender1 libxrandr2 libxpm4 libffi7 libgpm2 libtinfo6 libncurses6 > /dev/null
+            timeout 900 ./build/arm/sc2000 --headless --log tests/out/log13.txt --script tests/ui13.txt'
+          grep -q "status: Chamfer1 created: 2 mm x 45" tests/out/log13.txt
+          grep -q "status: Redone: Add Hole1" tests/out/log13.txt
+      - name: Screenshots to PNG
+        if: always()
+        run: |
+          sudo apt-get install -y -qq imagemagick > /dev/null
+          cd freebasic/tests/out
+          for f in *.bmp; do [ -f "$f" ] && convert "$f" "${f%.bmp}.png" && rm "$f"; done || true
+          ls
       - uses: actions/upload-artifact@v7
-        with: { name: freebasic-pi, path: freebasic/build/arm/sc98 }
+        with: { name: freebasic-pi, path: freebasic/build/arm/sc2000 }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with: { name: freebasic-pi-screens, path: freebasic/tests/out }
 
   package:
     needs: [delphi-linux, delphi-windows, delphi-pi, freebasic-linux, freebasic-pi]
@@ -196,9 +250,9 @@ jobs:
           cp art/delphi-linux/SolidCraft98 delphi/build/SolidCraft98
           cp art/delphi-pi/SolidCraft98 delphi/build/arm/SolidCraft98
           cp art/delphi-windows/SolidCraft98.exe delphi/build/win/SolidCraft98.exe
-          cp art/freebasic-linux/sc98 freebasic/build/sc98
-          cp art/freebasic-pi/sc98 freebasic/build/arm/sc98
-          chmod +x delphi/build/SolidCraft98 delphi/build/arm/SolidCraft98 freebasic/build/sc98 freebasic/build/arm/sc98
+          cp art/freebasic-linux/sc2000 freebasic/build/sc2000
+          cp art/freebasic-pi/sc2000 freebasic/build/arm/sc2000
+          chmod +x delphi/build/SolidCraft98 delphi/build/arm/SolidCraft98 freebasic/build/sc2000 freebasic/build/arm/sc2000
           delphi/mkdist.sh
           freebasic/mkdist.sh --pack-only
           cp delphi/dist/*.zip freebasic/dist/*.tar.gz dist-out/

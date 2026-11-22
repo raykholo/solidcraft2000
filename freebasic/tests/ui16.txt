@@ -1,0 +1,11 @@
+# SolidCraft designs: the fillets and chamfers come over as fillets and chamfers
+wait 200
+key ctrl+o
+wait 100
+type Rounded Block.solidcraft
+key enter
+wait 500
+shot tests/out/y01_rounded_block.bmp
+key s
+wait 2500
+shot tests/out/y02_rounded_shaded.bmp

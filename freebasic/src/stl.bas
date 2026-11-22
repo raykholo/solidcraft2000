@@ -25,7 +25,7 @@ Function WriteStl(t() As TTri, ByVal n As Long, ByRef sPath As String, ByRef sTi
             mz = Min3(Min3(mz, .Z1, .Z2), .Z3, .Z3)
         End With
     Next i
-    Dim As String hdr = Left("Binary STL from SolidCraft 98: " & sTitle & ", mm" & Space(80), 80)
+    Dim As String hdr = Left("Binary STL from SolidCraft 2000: " & sTitle & ", mm" & Space(80), 80)
     If Len(Dir(sPath)) Then Kill sPath
     fh = FreeFile
     If Open(sPath For Binary Access Write As #fh) <> 0 Then Return False
