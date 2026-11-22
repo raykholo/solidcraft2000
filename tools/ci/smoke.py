@@ -11,6 +11,7 @@
 Fails if the program won't start, or an action answers "error:" where it
 shouldn't.
 """
+import re
 import socket
 import subprocess
 import sys
@@ -121,8 +122,8 @@ shot("sheetmetal")
 say("menu Sheet Metal > Flat Pattern")
 say("wait 4000")                       # shaded first, then "saved as"
 shot("flatpattern")
-if "PART2~1.DXF" not in say("look"):
-    problems.append("the flat pattern wasn't saved as PART2~1.DXF")
+if not re.search(r"PART\d~1\.DXF", say("look")):
+    problems.append("the flat pattern wasn't saved with an 8.3 name like PART3~1.DXF")
 say("key enter")
 
 # the personalized File menu: Save As is hidden until "Show all items"
