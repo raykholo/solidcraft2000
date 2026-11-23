@@ -283,7 +283,7 @@ var
 begin
   c := FCaption.Canvas;
   w := FCaption.Width;
-  if FActive then GradientH(c, 0, 0, w, CAPTION_H, $800000, $D08410)
+  if FActive then GradientH(c, 0, 0, w, CAPTION_H, TEAL_DARK, TEAL_LIGHT)
   else GradientH(c, 0, 0, w, CAPTION_H, $808080, $B5B5B5);
   PaintIcon(c, 'App', 2, 2);
   c.Brush.Style := bsClear;

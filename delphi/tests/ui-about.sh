@@ -1,7 +1,6 @@
 # About, WIN98, DELPHI, and DLL Hell (Turbo, Shift-click the logo).
 sleep 3
-key alt+v
-key t
+turbo_on
 key alt+h
 key a
 sleep 1

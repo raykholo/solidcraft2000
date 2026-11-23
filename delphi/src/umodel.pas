@@ -1,9 +1,11 @@
-{ uModel - the design, and the .sc98 file.
+{ uModel - the design, and the .sc2 file.
 
   The file is byte for byte what the Windows version writes with VB's Put:
   a packed record, 2-byte SmallInts, 8-byte Doubles and fixed strings padded
-  with spaces. Parts move freely between the editions. Versions 3 and 4
-  (smaller records) are read and converted. }
+  with spaces. Parts move freely between the editions. SolidCraft 98 parts
+  (.sc98) are read and upgraded; versions 3 and 4 (smaller records) are read
+  and converted. A part is saved as version 6, or 7 if it uses something from
+  Service Pack 1 (a chamfer, a hole pattern, chosen edges, a side face). }
 unit uModel;
 
 {$mode objfpc}{$H+}
@@ -11,8 +13,10 @@ unit uModel;
 interface
 
 const
-  FILE_MAGIC = 'SC98';
-  FILE_VERSION = 5;
+  FILE_MAGIC = 'SC2K';
+  FILE_MAGIC_98 = 'SC98';     // SolidCraft 98 parts: read, upgraded, never written
+  FILE_VERSION = 7;           // 7: Service Pack 1. Parts without it are still saved as 6
+  FILE_VERSION_1_0 = 6;
   MAX_FEATURES = 64;          // someone once had 41 features
 
   FK_NONE = 0;
@@ -21,7 +25,25 @@ const
   FK_EXTRUDE = 3;
   FK_REVOLVE = 4;
   FK_HOLE = 5;
-  FK_FOREIGN = 9;             // from a SolidCraft design; SolidCraft 98 can't build it
+  FK_FILLET = 6;              // NEW IN 2000: rounds the edges of an extrude
+  FK_CHAMFER = 7;             // Service Pack 1: bevels them, at 45 degrees
+  FK_FOREIGN = 9;             // from a SolidCraft design, and not something SolidCraft 2000 can build
+  FK_SM_BASE = 20;            // sheet metal: see usheet.pas
+  FK_SM_EDGE = 21;
+  FK_SM_FLAT = 22;
+
+  SM_RELIEF_NONE = 0;
+  SM_RELIEF_RECT = 1;
+  SM_RELIEF_OBROUND = 2;
+  SM_RELIEF_TEAR = 3;
+
+  FACE_TOP = 0;               // a sketch's Reserved[1]: which face of its extrude
+  FACE_FRONT = 1;             // -Y
+  FACE_RIGHT = 2;             // +X
+  FACE_BACK = 3;              // +Y
+  FACE_LEFT = 4;              // -X
+  SIDES_ALL = 15;             // fillet sides: 1 front, 2 right, 4 back, 8 left
+  MAX_PATTERN = 36;
 
 type
   TFeature = record
@@ -34,6 +56,8 @@ type
     Suppressed: Integer;
     P3: Double;               // rectangle corner radius
     Info: string;             // FK_FOREIGN: what it was in SolidCraft ("fillet")
+    Reserved: array[1..3] of Double;   // sketch: face. Hole pattern: bolt circle dia., row spacing, angle.
+                                       // Fillet, chamfer: top sides left sharp, bottom sides taken
   end;
 
   TDesign = record
@@ -48,11 +72,21 @@ var
   Y2KHappened: Boolean;
   Y2KDimension: function: string = nil;   // set by uTurbo
   LastFileError: string;
+  Upgraded98: Boolean;        // the part LoadDesign just read was a SolidCraft 98 one
 
 procedure NewDesign(var d: TDesign; const ATitle: string);
 function KindName(k: Integer): string;
 function KindPrefix(k: Integer): string;
 function IsSketch(k: Integer): Boolean;
+function IsEdgeFinish(k: Integer): Boolean;
+function SketchFace(const f: TFeature): Integer;
+function FinishTop(const f: TFeature): Integer;
+function FinishBottom(const f: TFeature): Integer;
+function SMFmt(v: Double): string;
+function SM_IsSheetMetal(k: Integer): Boolean;
+function SM_UsesSketch(k: Integer): Boolean;
+function FaceName(face: Integer): string;
+function SidesText(mask: Integer): string;
 function AddFeature(var d: TDesign; f: TFeature): Integer;
 function FeatureName(const d: TDesign; i: Integer): string;
 function LastFreeSketch(const d: TDesign): Integer;
@@ -134,7 +168,12 @@ begin
     FK_EXTRUDE: Result := 'Extrude';
     FK_REVOLVE: Result := 'Revolve';
     FK_HOLE: Result := 'Hole';
+    FK_FILLET: Result := 'Fillet';
+    FK_CHAMFER: Result := 'Chamfer';
     FK_FOREIGN: Result := 'SolidCraft';
+    FK_SM_BASE: Result := 'Base Flange';
+    FK_SM_EDGE: Result := 'Edge Flange';
+    FK_SM_FLAT: Result := 'Flat Pattern';
   else
     Result := '?';
   end;
@@ -147,6 +186,11 @@ begin
     FK_EXTRUDE: Result := 'Extrude';
     FK_REVOLVE: Result := 'Revolve';
     FK_HOLE: Result := 'Hole';
+    FK_FILLET: Result := 'Fillet';
+    FK_CHAMFER: Result := 'Chamfer';
+    FK_SM_BASE: Result := 'BaseFlange';
+    FK_SM_EDGE: Result := 'EdgeFlange';
+    FK_SM_FLAT: Result := 'FlatPattern';
   else
     Result := '';
   end;
@@ -155,6 +199,73 @@ end;
 function IsSketch(k: Integer): Boolean;
 begin
   Result := (k = FK_SKETCH_RECT) or (k = FK_SKETCH_CIRCLE);
+end;
+
+{ A fillet or a chamfer: something that finishes the edges of an extrude.
+  An extrude gets one of them, not both. }
+function IsEdgeFinish(k: Integer): Boolean;
+begin
+  Result := (k = FK_FILLET) or (k = FK_CHAMFER);
+end;
+
+function SM_IsSheetMetal(k: Integer): Boolean;
+begin
+  Result := (k = FK_SM_BASE) or (k = FK_SM_EDGE) or (k = FK_SM_FLAT);
+end;
+
+function SM_UsesSketch(k: Integer): Boolean;
+begin
+  Result := k = FK_SM_BASE;
+end;
+
+{ Which face of its extrude sketch f is on (FACE_TOP for the ground too). }
+function SketchFace(const f: TFeature): Integer;
+begin
+  if f.Ref <= 0 then Exit(FACE_TOP);
+  Result := Round(f.Reserved[1]);
+end;
+
+function FaceName(face: Integer): string;
+begin
+  case face of
+    FACE_FRONT: Result := 'front';
+    FACE_RIGHT: Result := 'right';
+    FACE_BACK: Result := 'back';
+    FACE_LEFT: Result := 'left';
+  else
+    Result := 'top';
+  end;
+end;
+
+{ The top sides a fillet takes (Reserved[1] is the ones it leaves sharp, so 0,
+  in every part from before Service Pack 1, is all of them), and the bottom ones. }
+function FinishTop(const f: TFeature): Integer;
+begin
+  Result := SIDES_ALL - (Round(f.Reserved[1]) and SIDES_ALL);
+end;
+
+function FinishBottom(const f: TFeature): Integer;
+begin
+  Result := Round(f.Reserved[2]) and SIDES_ALL;
+end;
+
+{ "", " front and back", " front, right and left": which sides, for Describe. }
+function SidesText(mask: Integer): string;
+const
+  Nm: array[0..3] of string = ('front', 'right', 'back', 'left');
+var
+  w: array[0..3] of string;
+  n, k: Integer;
+begin
+  Result := '';
+  if (mask = SIDES_ALL) or (mask = 0) then Exit;
+  n := 0;
+  for k := 0 to 3 do
+    if mask and (1 shl k) <> 0 then begin w[n] := Nm[k]; Inc(n); end;
+  for k := 0 to n - 1 do
+    if k = 0 then Result := ' ' + w[k]
+    else if k = n - 1 then Result := Result + ' and ' + w[k]
+    else Result := Result + ', ' + w[k];
 end;
 
 function AddFeature(var d: TDesign; f: TFeature): Integer;
@@ -187,7 +298,7 @@ begin
     begin
       used := False;
       for j := i + 1 to d.Count do
-        if (d.F[j].Ref = i) and ((d.F[j].Kind = FK_EXTRUDE) or (d.F[j].Kind = FK_REVOLVE)) then used := True;
+        if (d.F[j].Ref = i) and ((d.F[j].Kind = FK_EXTRUDE) or (d.F[j].Kind = FK_REVOLVE) or SM_UsesSketch(d.F[j].Kind)) then used := True;
       if not used then Exit(i);
     end;
   Result := 0;
@@ -276,6 +387,7 @@ begin
   if f.Ref > 0 then
   begin
     Result := ', on ' + FeatureName(d, f.Ref);
+    if SketchFace(f) <> FACE_TOP then Result := Result + ' ' + FaceName(SketchFace(f));
     if f.Z <> 0 then
     begin
       if f.Z > 0 then Result := Result + ' +' else Result := Result + ' ';
@@ -284,6 +396,46 @@ begin
   end
   else if f.Z <> 0 then
     Result := ', Z ' + Fmt(f.Z);
+end;
+
+function EdgesText(const f: TFeature): string;
+var
+  mt, mb: Integer;
+begin
+  Result := '';
+  mt := FinishTop(f); mb := FinishBottom(f);
+  if mt > 0 then Result := 'top' + SidesText(mt) + ' edges';
+  if (mt > 0) and (mb > 0) then Result := Result + ', ';
+  if mb > 0 then Result := Result + 'bottom' + SidesText(mb) + ' edges';
+end;
+
+function SMEdgeName(e: Integer): string;
+begin
+  case e of
+    0: Result := 'front';
+    1: Result := 'right';
+    2: Result := 'back';
+  else
+    Result := 'left';
+  end;
+end;
+
+function SMReliefName(r: Integer): string;
+begin
+  case r of
+    SM_RELIEF_NONE: Result := 'no relief';
+    SM_RELIEF_RECT: Result := 'rectangular relief';
+    SM_RELIEF_OBROUND: Result := 'obround relief';
+    SM_RELIEF_TEAR: Result := 'tear relief';
+  else
+    Result := '';
+  end;
+end;
+
+{ A number the way the sheet metal dialogs show it: 0.44 stays 0.44. }
+function SMFmt(v: Double): string;
+begin
+  Result := FmtN(v, 3);
 end;
 
 function Describe(const d: TDesign; i: Integer): string;
@@ -303,14 +455,39 @@ begin
         Result := FeatureName(d, Ref) + ', ' + Fmt(P1) + ' mm';
       FK_REVOLVE:
         Result := FeatureName(d, Ref) + ', ' + Fmt(P1) + #194#176 + ' about Y';
+      FK_FILLET, FK_CHAMFER:
+        begin
+          if Kind = FK_FILLET then Result := 'R ' + Fmt(P1) + ' mm, '
+          else Result := Fmt(P1) + ' mm x 45' + #194#176 + ', ';
+          Result := Result + EdgesText(d.F[i]) + ' of ' + FeatureName(d, Ref);
+        end;
       FK_FOREIGN:
-        Result := 'From SolidCraft. Not in SolidCraft 98.';
+        Result := 'From SolidCraft. Not in SolidCraft 2000.';
       FK_HOLE:
         begin
-          Result := 'D ' + Fmt(P1) + ' mm on ' + FeatureName(d, Ref) + ' top face, ';
+          if P3 >= 2 then Result := IntToStr(Trunc(P3)) + ' x ';
+          Result := Result + 'D ' + Fmt(P1) + ' mm on ' + FeatureName(d, Ref) + ' top face, ';
           if P2 <= 0 then Result := Result + 'through all'
           else Result := Result + Fmt(P2) + ' mm deep';
+          if P3 >= 2 then
+          begin
+            if Reserved[1] > 0 then
+              Result := Result + ', on a ' + Fmt(Reserved[1]) + ' mm bolt circle'
+            else
+            begin
+              Result := Result + ', in a row ' + Fmt(Reserved[2]) + ' mm apart';
+              if Reserved[3] <> 0 then Result := Result + ' at ' + Fmt(Reserved[3]) + #194#176;
+            end;
+          end;
         end;
+      FK_SM_BASE:
+        Result := FeatureName(d, Ref) + ', T ' + Fmt(P1) + ' mm, R ' + Fmt(P2) + ' mm, K ' + FormatFloat('0.00', P3);
+      FK_SM_EDGE:
+        Result := SMEdgeName(Round(X)) + ' edge of ' + FeatureName(d, Ref) + ', ' + Fmt(P1) + ' mm at ' +
+          Fmt(P2) + #194#176 + ', ' + SMReliefName(Round(P3));
+      FK_SM_FLAT:
+        if Suppressed <> 0 then Result := 'Folded (suppressed)'
+        else Result := 'Flat, saved as ' + Trim(Info);
     end;
 end;
 
@@ -350,12 +527,28 @@ begin
   Result := CP1252ToUTF8(a);
 end;
 
+{ The oldest version that can hold this part, so a part without anything
+  from Service Pack 1 still opens in SolidCraft 2000 1.0. }
+function SaveVersion(const d: TDesign): Integer;
+var
+  i: Integer;
+begin
+  Result := FILE_VERSION_1_0;
+  for i := 1 to d.Count do
+  begin
+    if d.F[i].Kind = FK_CHAMFER then Result := FILE_VERSION;
+    if (d.F[i].Kind = FK_HOLE) and (d.F[i].P3 >= 2) then Result := FILE_VERSION;
+    if IsEdgeFinish(d.F[i].Kind) and ((d.F[i].Reserved[1] <> 0) or (d.F[i].Reserved[2] <> 0)) then Result := FILE_VERSION;
+    if IsSketch(d.F[i].Kind) and (d.F[i].Reserved[1] <> 0) then Result := FILE_VERSION;
+  end;
+end;
+
 function SaveDesign(const d: TDesign; const APath: string): Boolean;
 var
   fs: TFileStream;
   h: TFileHeader;
   r: TFileFeature;
-  i: Integer;
+  i, k: Integer;
 begin
   Result := False;
   LastFileError := '';
@@ -372,7 +565,7 @@ begin
   end;
   try
     Move(FILE_MAGIC[1], h.Magic, 4);
-    h.Version := FILE_VERSION;
+    h.Version := SaveVersion(d);
     ToFix(d.Title, h.Title, 64);
     h.Count := d.Count;
     fs.WriteBuffer(h, SizeOf(h));
@@ -387,12 +580,18 @@ begin
       r.Suppressed := d.F[i].Suppressed;
       r.P3 := d.F[i].P3;
       ToFix(d.F[i].Info, r.Info, 32);
+      for k := 1 to 3 do r.Reserved[k] := d.F[i].Reserved[k];
       fs.WriteBuffer(r, SizeOf(r));
     end;
     Result := True;
   finally
     fs.Free;
   end;
+end;
+
+function MagicIs(const h: TFileHeader; const m: string): Boolean;
+begin
+  Result := (h.Magic[0] = m[1]) and (h.Magic[1] = m[2]) and (h.Magic[2] = m[3]) and (h.Magic[3] = m[4]);
 end;
 
 function LoadDesign(var d: TDesign; const APath: string): Integer;
@@ -402,8 +601,10 @@ var
   r5: TFileFeature;
   r4: TFileFeatureV4;
   r3: TFileFeatureV3;
-  i: Integer;
+  i, k, ver: Integer;
+  from98: Boolean;
 begin
+  Upgraded98 := False;
   try
     fs := TFileStream.Create(APath, fmOpenRead or fmShareDenyNone);
   except
@@ -413,21 +614,28 @@ begin
   try
     if fs.Read(h, SizeOf(h)) < 6 then
     begin
-      LastFileError := '''' + APath + ''' is not a SolidCraft 98 part.';
+      LastFileError := '"' + APath + '" is not a SolidCraft 2000 part.';
       Exit(1);
     end;
-    if h.Magic <> FILE_MAGIC then
+    ver := h.Version;
+    from98 := False;
+    if MagicIs(h, FILE_MAGIC_98) then
     begin
-      LastFileError := '''' + APath + ''' is not a SolidCraft 98 part.';
+      if ver > 5 then ver := 99;        // there's no newer SolidCraft 98 part
+      from98 := True;
+    end
+    else if not MagicIs(h, FILE_MAGIC) then
+    begin
+      LastFileError := '"' + APath + '" is not a SolidCraft 2000 part.';
       Exit(1);
     end;
-    if h.Version > FILE_VERSION then
+    if ver > FILE_VERSION then
     begin
       LastFileError := 'This file was saved by a newer version of SolidCraft.' + LineEnding + LineEnding +
-        'Please upgrade to SolidCraft 98 Second Edition.';
+        'Please upgrade to SolidCraft 2000 Service Pack 1.';
       Exit(2);
     end;
-    if h.Version < 3 then
+    if ver < 3 then
     begin
       LastFileError := 'This file was saved by an older version of SolidCraft.' + LineEnding + LineEnding +
         'Versions before 3 are not supported. They never were.';
@@ -436,7 +644,7 @@ begin
     NewDesign(d, FromFix(h.Title, 64));
     for i := 1 to MAX_FEATURES do
     begin
-      case h.Version of
+      case ver of
         3: begin
              FillChar(r3, SizeOf(r3), 0);
              fs.Read(r3, SizeOf(r3));
@@ -462,12 +670,14 @@ begin
       d.F[i].Ref := r5.Ref;
       d.F[i].Suppressed := r5.Suppressed;
       d.F[i].P3 := r5.P3;
-      if h.Version >= 5 then d.F[i].Info := FromFix(r5.Info, 32);
+      if ver >= 5 then d.F[i].Info := FromFix(r5.Info, 32);
+      for k := 1 to 3 do d.F[i].Reserved[k] := r5.Reserved[k];
     end;
     d.Count := h.Count;
     if (d.Count < 0) or (d.Count > MAX_FEATURES) then d.Count := 0;
     for i := d.Count + 1 to MAX_FEATURES do d.F[i].Kind := FK_NONE;
-    if h.Version = 3 then
+    Upgraded98 := from98;
+    if ver = 3 then
     begin
       LastFileError := 'This file was saved by an older version of SolidCraft.' + LineEnding + LineEnding +
         'It has been converted. Save it to keep the new format.' + LineEnding + '(This has never happened before.)';

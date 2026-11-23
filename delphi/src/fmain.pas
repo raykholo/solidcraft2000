@@ -16,7 +16,13 @@ type
     FMenu: TMainMenu;
     FWindowMenu: TMenuItem;
     FWindowFixed: Integer;
-    FShadedItem, FTurboItem: TMenuItem;
+    FShadedItem, FTurboItem, FStabilityItem: TMenuItem;
+    FAdaptive: array of record
+      Item: TMenuItem;
+      Cmd: string;
+      Key: TShortCut;
+      Menu: Integer;           // 0 File, 1 Features, 2 View
+    end;
     FImages: TImageList;
     FBar: TToolBar;
     FTurboBtn, FShadedBtn: TToolButton;
@@ -33,12 +39,15 @@ type
     FCal: TPanel;
     FCalSay: TLabel;
     FCalHelp, FCalNoHelp: TButton;
-    FCalShown, FCalSilenced: Boolean;
+    FCalShown: string;           // the topics Cal has done this run; once each is plenty
+    FCalSilenced: Boolean;
+    FCalTopic: string;
     FCalPin: TPanel;
     function AddItem(AParent: TMenuItem; const ACaption, ACmd: string; AKey: TShortCut = 0; const AHint: string = ''): TMenuItem;
     procedure BuildMenus;
     procedure BuildToolbar;
     procedure BuildCal;
+    procedure Personalize;
     procedure ItemClick(Sender: TObject);
     procedure WindowItemClick(Sender: TObject);
     procedure ButtonClick(Sender: TObject);
@@ -78,7 +87,9 @@ type
     procedure SetFpsText(const s: string);
     { Open and Save As dialogs. '' on Cancel. }
     function AskFileName(ASave: Boolean; const ADefault, AFilter, AExt: string): string;
-    procedure CalPop(const ASay: string);
+    procedure CalPop(const ASay: string; const ATopic: string = 'box');
+    { Help, Install Stability Pack says Uninstall once it's in. }
+    procedure StabilityChanged;
   end;
 
 var
@@ -86,7 +97,7 @@ var
 
 implementation
 
-uses Math, uModel, uDocs, uArt, uCommands;
+uses Math, uModel, uDocs, uArt, uCommands, uAdaptive, uStability, fDialogs;
 
 procedure StatusHook(const s: string);
 begin
@@ -106,7 +117,7 @@ begin
   inherited CreateNew(AOwner, 1);
   FCmds := TStringList.Create;
   Caption := APP_NAME;
-  Color := clBtnFace;
+  Color := FACE_2000;
   Position := poScreenCenter;
   SetBounds(0, 0, 800, 600);
   // On an 800 x 600 screen the window doesn't fit, so take the whole screen.
@@ -145,6 +156,8 @@ begin
   StatusProc := @StatusHook;
   FpsProc := @FpsHook;
   ClockTimer(nil);
+  Personalize;
+  StabilityChanged;
   SetStatusText('Ready');
 end;
 
@@ -159,6 +172,8 @@ end;
 { ---- menus ---- }
 
 function TMainForm.AddItem(AParent: TMenuItem; const ACaption, ACmd: string; AKey: TShortCut; const AHint: string): TMenuItem;
+var
+  mi: Integer;
 begin
   Result := TMenuItem.Create(Self);
   Result.Caption := ACaption;
@@ -170,6 +185,19 @@ begin
   Result.ShortCut := AKey;
   Result.Hint := AHint;
   AParent.Add(Result);
+  // the File, Features and View menus are the personalized ones
+  mi := -1;
+  if AParent.Caption = '&File' then mi := 0
+  else if AParent.Caption = 'Fea&tures' then mi := 1
+  else if AParent.Caption = '&View' then mi := 2;
+  if mi >= 0 then
+  begin
+    SetLength(FAdaptive, Length(FAdaptive) + 1);
+    FAdaptive[High(FAdaptive)].Item := Result;
+    FAdaptive[High(FAdaptive)].Cmd := ACmd;
+    FAdaptive[High(FAdaptive)].Key := AKey;
+    FAdaptive[High(FAdaptive)].Menu := mi;
+  end;
 end;
 
 procedure TMainForm.BuildMenus;
@@ -189,10 +217,12 @@ begin
   AddItem(m, 'Export for &Rapid Prototyping (*.stl)...', 'ExportStl', 0, 'Write the part as an STL file.');
   AddItem(m, '&Close', 'Close', 0, 'Close the part.');
   AddItem(m, '-', '');
-  AddItem(m, 'E&xit', 'Exit', 0, 'Quit SolidCraft 98.');
+  AddItem(m, 'E&xit', 'Exit', 0, 'Quit SolidCraft 2000.');
+  AddItem(m, 'Show &all items', MORE_TAG, 0, 'Show every item in this menu.');
 
   m := AddItem(FMenu.Items, '&Edit', '');
-  AddItem(m, '&Undo Last Feature', 'Undo', ShortCut(VK_Z, [ssCtrl]), 'Remove the last feature.');
+  AddItem(m, '&Undo', 'Undo', ShortCut(VK_Z, [ssCtrl]), 'Take back the last change.');
+  AddItem(m, '&Redo', 'Redo', ShortCut(VK_Y, [ssCtrl]), 'Do again what Undo took back.');
   AddItem(m, '-', '');
   AddItem(m, '&Edit Feature...', 'Edit', ShortCut(VK_RETURN, []), 'Change the selected feature''s numbers.');
   AddItem(m, '&Delete Feature', 'Delete', ShortCut(VK_DELETE, []), 'Delete the selected feature.');
@@ -204,7 +234,17 @@ begin
   m := AddItem(FMenu.Items, 'Fea&tures', '');
   AddItem(m, '&Extrude...', 'Extrude', ShortCut(VK_E, []), 'Pull the last sketch up into a solid.');
   AddItem(m, 'Re&volve...', 'Revolve', ShortCut(VK_V, []), 'Spin the last sketch round the Y axis.');
-  AddItem(m, '&Hole...', 'Hole', ShortCut(VK_H, []), 'Drill a hole in the top face.');
+  AddItem(m, '&Hole...', 'Hole', ShortCut(VK_H, []), 'Drill a hole, or a pattern of them, in the top face.');
+  AddItem(m, 'Fi&llet... (New!)', 'Fillet', ShortCut(VK_L, []), 'Round the edges of an extrude.');
+  AddItem(m, 'Cha&mfer... (SP1)', 'Chamfer', ShortCut(VK_M, []), 'Take the corners off the edges of an extrude, at 45 degrees.');
+  AddItem(m, 'Show &all items', MORE_TAG, 0, 'Show every item in this menu.');
+
+  m := AddItem(FMenu.Items, 'Sheet &Metal', '');
+  AddItem(m, '&Base Flange...', 'SMBase', 0, 'Make sheet metal from a rectangle sketch.');
+  AddItem(m, '&Edge Flange...', 'SMEdge', 0, 'Bend a flange up from an edge of the base flange.');
+  AddItem(m, '&Flat Pattern', 'SMFlat', 0, 'Unfold the part, and write the flat pattern as a DXF. Again to fold it up.');
+  AddItem(m, '-', '');
+  AddItem(m, 'Bend &Table Wizard...', 'BendTable', 0, 'Choose a material and a thickness.');
 
   m := AddItem(FMenu.Items, '&View', '');
   AddItem(m, '&Isometric', 'ViewIso', ShortCut(VK_I, []), 'Look at the front, right and top.');
@@ -213,6 +253,7 @@ begin
   FShadedItem := AddItem(m, '&Shaded', 'Shaded', ShortCut(VK_S, []), 'Rendered in software, properly.');
   AddItem(m, '-', '');
   FTurboItem := AddItem(m, '&Turbo', 'Turbo', 0, 'Makes everything faster. (It doesn''t.)');
+  AddItem(m, 'Show &all items', MORE_TAG, 0, 'Show every item in this menu.');
 
   FWindowMenu := AddItem(FMenu.Items, '&Window', '');
   AddItem(FWindowMenu, '&Cascade', 'Cascade');
@@ -222,23 +263,96 @@ begin
 
   m := AddItem(FMenu.Items, '&Help', '');
   AddItem(m, '&Contents', 'Help', ShortCut(VK_F1, []), 'Help.');
+  AddItem(m, '&Upgrade from SolidCraft 98...', 'Upgrade', 0, 'The Upgrade Wizard.');
+  FStabilityItem := AddItem(m, 'Install &Stability Pack...', 'StabilityPack', 0, 'Stop SolidCraft 2000 crashing every 15 minutes or so.');
   AddItem(m, '-', '');
-  AddItem(m, '&About SolidCraft 98...', 'About', 0, 'Version, licence and memory.');
+  AddItem(m, '&About SolidCraft 2000...', 'About', 0, 'Version, licence and memory.');
+end;
+
+{ ---- Personalized Menus (uAdaptive) ---- }
+
+{ Hides or shows every item of the three short menus. A separator shows only
+  if something after it does, and "Show all items" only if something is
+  hidden. A hidden item's keyboard shortcut goes with it. }
+procedure TMainForm.Personalize;
+var
+  mn, i, j, last: Integer;
+  anyHidden, after, vis: Boolean;
+begin
+  for mn := 0 to 2 do
+  begin
+    anyHidden := False;
+    last := -1;
+    for i := 0 to High(FAdaptive) do
+      if FAdaptive[i].Menu = mn then
+      begin
+        last := i;
+        if (FAdaptive[i].Cmd <> MORE_TAG) and (FAdaptive[i].Cmd <> '') and not AdaptiveShows(FAdaptive[i].Cmd) then anyHidden := True;
+      end;
+    for i := 0 to High(FAdaptive) do
+      if FAdaptive[i].Menu = mn then
+      begin
+        if FAdaptive[i].Cmd = MORE_TAG then vis := anyHidden
+        else if FAdaptive[i].Cmd = '' then
+        begin
+          // a separator
+          after := False;
+          for j := i + 1 to High(FAdaptive) do
+            if (FAdaptive[j].Menu = mn) and (FAdaptive[j].Cmd <> '') and (FAdaptive[j].Cmd <> MORE_TAG) and
+               AdaptiveShows(FAdaptive[j].Cmd) then after := True;
+          vis := after;
+        end
+        else vis := AdaptiveShows(FAdaptive[i].Cmd);
+        FAdaptive[i].Item.Visible := vis;
+        if vis then FAdaptive[i].Item.ShortCut := FAdaptive[i].Key
+        else FAdaptive[i].Item.ShortCut := 0;
+      end;
+    if last < 0 then Continue;
+  end;
+end;
+
+procedure TMainForm.StabilityChanged;
+begin
+  if StabilityPackInstalled then FStabilityItem.Caption := 'Uninstall &Stability Pack...'
+  else FStabilityItem.Caption := 'Install &Stability Pack...';
 end;
 
 procedure TMainForm.ItemClick(Sender: TObject);
+var
+  cmd: string;
+  i: Integer;
+  adaptive: Boolean;
 begin
-  RunCommand(FCmds[TComponent(Sender).Tag]);
+  cmd := FCmds[TComponent(Sender).Tag];
+  adaptive := False;
+  for i := 0 to High(FAdaptive) do
+    if FAdaptive[i].Item = Sender then adaptive := True;
+  if cmd = MORE_TAG then
+  begin
+    // "Show all items": everything back. (The menu doesn't pop open again by
+    // itself; open it again.)
+    AdaptiveExpand;
+    Personalize;
+    SetStatusText('All items shown. Use one and the menus go short again.');
+    Exit;
+  end;
+  if adaptive then
+  begin
+    AdaptiveUsed(cmd);
+    Personalize;
+  end;
+  RunCommand(cmd);
 end;
 
 { ---- the toolbar ---- }
 
 procedure TMainForm.BuildToolbar;
 const
-  Keys: array[0..16] of string = ('New', 'Open', 'Save', '', 'SketchRect', 'SketchCircle', '',
-    'Extrude', 'Revolve', 'Hole', '', 'Orbit', 'Shaded', 'ZoomFit', 'Regen', '', 'Turbo');
-  Tips: array[0..16] of string = ('New Part (Ctrl+N)', 'Open Part (Ctrl+O)', 'Save Part (Ctrl+S)', '',
-    'Sketch Rectangle (R)', 'Sketch Circle (C)', '', 'Extrude (E)', 'Revolve (V)', 'Hole (H)', '',
+  Keys: array[0..18] of string = ('New', 'Open', 'Save', '', 'SketchRect', 'SketchCircle', '',
+    'Extrude', 'Revolve', 'Hole', 'Fillet', 'Chamfer', '', 'Orbit', 'Shaded', 'ZoomFit', 'Regen', '', 'Turbo');
+  Tips: array[0..18] of string = ('New Part (Ctrl+N)', 'Open Part (Ctrl+O)', 'Save Part (Ctrl+S)', '',
+    'Sketch Rectangle (R)', 'Sketch Circle (C)', '', 'Extrude (E)', 'Revolve (V)', 'Hole (H)',
+    'Fillet (L)', 'Chamfer (M)', '',
     'Isometric View (I). Drag in the viewport to orbit.', 'Shaded (S). Rendered in software, properly.',
     'Zoom to Fit (F)', 'Regenerate (F5)', '', 'Turbo. Makes everything faster. (It doesn''t.)');
 var
@@ -390,6 +504,8 @@ begin
     SetStatusText('Happy New Year 19100! All dimensions have been updated.');
   end;
   FStatus.Panels[3].Text := FormatDateTime('h:nn AM/PM', ClockNow);
+  // every 12 to 18 minutes: the blue screen. Nothing underneath is touched.
+  if (Sender <> nil) and StabilityTick then ShowFatal(True);
 end;
 
 { ---- the part windows ---- }
@@ -705,7 +821,7 @@ begin
   Result := '';
   filter := AFilter;
   ext := AExt;
-  if filter = '' then filter := 'SolidCraft 98 Parts (*.sc98)|*.sc98';
+  if filter = '' then filter := 'SolidCraft 2000 Parts (*.sc2)|*.sc2';
   if ext = '' then ext := PART_EXT;
   if ASave then d := TSaveDialog.Create(Self) else d := TOpenDialog.Create(Self);
   try
@@ -809,13 +925,28 @@ begin
   PaintIcon(TPaintBox(Sender).Canvas, 'Cal', 0, 0, 3);
 end;
 
-procedure TMainForm.CalPop(const ASay: string);
+procedure TMainForm.CalPop(const ASay: string; const ATopic: string);
 begin
-  if FCalSilenced or FCalShown then Exit;
-  FCalShown := True;     // once per run is plenty
+  if FCalSilenced or (Pos('|' + ATopic + '|', FCalShown) > 0) then Exit;
+  FCalShown := FCalShown + '|' + ATopic + '|';     // once each is plenty
+  FCalTopic := ATopic;
   FCalSay.Caption := ASay + LineEnding + LineEnding + 'Would you like help?';
   FCalHelp.Visible := True;
-  FCalNoHelp.Caption := '&Just draw the box without help';
+  if ATopic = 'fillet' then
+  begin
+    FCalHelp.Caption := '&Get help with rounding the edge';
+    FCalNoHelp.Caption := '&Just round it without help';
+  end
+  else if ATopic = 'chamfer' then
+  begin
+    FCalHelp.Caption := '&Get help with taking the corner off';
+    FCalNoHelp.Caption := '&Just take it off without help';
+  end
+  else
+  begin
+    FCalHelp.Caption := '&Get help with drawing the box';
+    FCalNoHelp.Caption := '&Just draw the box without help';
+  end;
   FCal.SetBounds(FArea.ClientWidth - FCal.Width - 12, FArea.ClientHeight - FCal.Height - 12, FCal.Width, FCal.Height);
   // shown without taking the focus: you can keep typing while Cal watches
   FCal.Visible := True;
@@ -824,13 +955,20 @@ end;
 
 procedure TMainForm.CalClick(Sender: TObject);
 begin
-  FCalSay.Caption := 'Did you know? Every SolidCraft 98 file is also a perfectly good door stop, if you print it out.';
+  FCalSay.Caption := 'Did you know? Every SolidCraft 2000 file is also a perfectly good door stop, if you print it out.';
 end;
 
 procedure TMainForm.CalHelpClick(Sender: TObject);
 begin
-  FCalSay.Caption := 'Here''s a tip: boxes usually want to be extruded.' + LineEnding +
-    'Press E. If that doesn''t work, press E harder.';
+  if FCalTopic = 'fillet' then
+    FCalSay.Caption := 'Here''s a tip: a fillet rounds the top edges of an extrude, or the ones you pick.' + LineEnding +
+      'Add them up: 1 front, 2 right, 4 back, 8 left. It''s 2000.'
+  else if FCalTopic = 'chamfer' then
+    FCalSay.Caption := 'Here''s a tip: a chamfer cuts every top edge of an extrude at 45 degrees.' + LineEnding +
+      'Other angles are coming in SolidCraft XP. So is that fillet you wanted.'
+  else
+    FCalSay.Caption := 'Here''s a tip: boxes usually want to be extruded.' + LineEnding +
+      'Press E. If that doesn''t work, press E harder.';
   FCalHelp.Visible := False;
   FCalNoHelp.Caption := '&Thanks, Cal';
 end;
@@ -852,7 +990,7 @@ begin
     FCalPin.BringToFront;
   end
   else
-    MsgBox('OK. Cal won''t show this tip again.' + LineEnding + '(Until you restart SolidCraft 98.)', MB_INFO, 'Cal');
+    MsgBox('OK. Cal won''t show this tip again.' + LineEnding + '(Until you restart SolidCraft 2000.)', MB_INFO, 'Cal');
 end;
 
 procedure TMainForm.CalPinClose(Sender: TObject);

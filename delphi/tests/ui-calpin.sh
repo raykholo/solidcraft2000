@@ -2,8 +2,7 @@
 # and the x closes it. Turbo off is the plain message box (ui-basic).
 rm -f tests/out/cp-*.png
 sleep 3
-key alt+v
-key t
+turbo_on
 key r
 key Return
 sleep 2
