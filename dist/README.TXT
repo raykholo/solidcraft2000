@@ -19,6 +19,9 @@ Now with fillets.
    writes an .stl file for a 3D printer. (Can't see it? File, Show
    all items. The menus hide what you haven't used yet.)
 
+1.2: Help, Check Online for Help (with the modem noise), and the Delphi,
+Linux and Raspberry Pi editions on the releases page.
+
 Service Pack 1 (1.1): chamfers (M), hole patterns and bolt circles
 (the Hole dialog), fillets on the sides you pick and on the bottom,
 Undo and Redo (Ctrl+Z, Ctrl+Y), sketches on the sides of a box.
